@@ -86,7 +86,7 @@ abstract class CoreHandlerInterface with CoreInterface {
     dynamic data,
     Duration? timeout,
   }) async {
-    await completer.future;
+    await completer.future.withTimeout(timeout: const Duration(seconds: 10));
     if (kDebugMode) {
       commonPrint.log('Invoke ${method.name} ${DateTime.now()} $data');
     }
