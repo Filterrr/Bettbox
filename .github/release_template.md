@@ -31,15 +31,17 @@
             <td>Windows 10 +</td>
             <td align=left>
                 <a href="https://github.com/appshubcc/Bettbox/releases/download/vVERSION/Bettbox-VERSION-windows-amd64-setup.exe"><img src="https://img.shields.io/badge/Setup-x64-2d7d9a.svg?logo=windows"></a><br>
-                <a href="https://github.com/appshubcc/Bettbox/releases/download/vVERSION/Bettbox-VERSION-windows-arm64-setup.exe"><img src="https://img.shields.io/badge/Setup-arm64-2d7d9a.svg?logo=windows"></a>
+                <a href="https://github.com/appshubcc/Bettbox/releases/download/vVERSION/Bettbox-VERSION-windows-arm64-setup.exe"><img src="https://img.shields.io/badge/Setup-arm64-2d7d9a.svg?logo=windows"></a><br>
+                <a href="https://github.com/appshubcc/Bettbox/releases/download/vVERSION/Bettbox-VERSION-windows-amd64-compatible-setup.exe"><img src="https://img.shields.io/badge/Setup-x64%20Compatible-4B5263.svg?logo=windows"></a>
             </td>
         </tr>
         <tr>
             <td><b>macOS</b></td>
-            <td>macOS 12.0+</td>
+            <td>macOS 12.0+<br>(10.15+Compatible)</td>
             <td align=left>
                 <a href="https://github.com/appshubcc/Bettbox/releases/download/vVERSION/Bettbox-VERSION-macos-arm64.dmg"><img src="https://img.shields.io/badge/DMG-Apple%20Silicon-%23000000.svg?logo=apple"></a><br>
-                <a href="https://github.com/appshubcc/Bettbox/releases/download/vVERSION/Bettbox-VERSION-macos-amd64.dmg"><img src="https://img.shields.io/badge/DMG-Intel%20X64-%2300A9E0.svg?logo=apple"></a>
+                <a href="https://github.com/appshubcc/Bettbox/releases/download/vVERSION/Bettbox-VERSION-macos-amd64.dmg"><img src="https://img.shields.io/badge/DMG-Intel%20X64-%2300A9E0.svg?logo=apple"></a><br>
+                <a href="https://github.com/appshubcc/Bettbox/releases/download/vVERSION/Bettbox-VERSION-macos-amd64-compatible.dmg"><img src="https://img.shields.io/badge/DMG-Intel%20X64%20Compatible-%234B5263.svg?logo=apple"></a>
             </td>
         </tr>
         <tr>

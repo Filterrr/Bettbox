@@ -174,6 +174,7 @@ class Build {
     required Mode mode,
     required Target target,
     Arch? arch,
+    bool compatible = false,
   }) async {
     final isLib = mode == Mode.lib;
 
@@ -207,7 +208,7 @@ class Build {
           (item.target == Target.windows ||
               item.target == Target.linux ||
               item.target == Target.macos)) {
-        env['GOAMD64'] = 'v3';
+        env['GOAMD64'] = compatible ? 'v2' : 'v3';
       }
       if (isLib) {
         env['CGO_ENABLED'] = '1';
@@ -332,6 +333,10 @@ class BuildCommand extends Command {
       valueHelp: ['pre', 'stable'].join(','),
       help: 'The $name build env',
     );
+    argParser.addFlag(
+      'compatible',
+      help: 'Build with GOAMD64=v2 for broader compatibility on amd64',
+    );
   }
 
   @override
@@ -424,15 +429,20 @@ class BuildCommand extends Command {
       throw 'Invalid arch parameter';
     }
 
+    final bool compatible = argResults?['compatible'] ?? false;
+
     final corePaths = await Build.buildCore(
       target: target,
       arch: arch,
       mode: mode,
+      compatible: compatible,
     );
 
     if (out != 'app') {
       return;
     }
+
+    final String desc = compatible ? '$archName-compatible' : (archName ?? '');
 
     switch (target) {
       case Target.windows:
@@ -443,8 +453,7 @@ class BuildCommand extends Command {
         _buildDistributor(
           target: target,
           targets: 'exe',
-          args:
-              ' --description $archName --build-dart-define=CORE_SHA256=$token',
+          args: ' --description $desc --build-dart-define=CORE_SHA256=$token',
           env: env,
         );
         return;
@@ -460,8 +469,7 @@ class BuildCommand extends Command {
         _buildDistributor(
           target: target,
           targets: targets,
-          args:
-              ' --description $archName --build-target-platform $defaultTarget',
+          args: ' --description $desc --build-target-platform $defaultTarget',
           env: env,
         );
         return;
@@ -493,7 +501,7 @@ class BuildCommand extends Command {
         _buildDistributor(
           target: target,
           targets: 'dmg',
-          args: ' --description $archName',
+          args: ' --description $desc',
           env: env,
         );
         return;
