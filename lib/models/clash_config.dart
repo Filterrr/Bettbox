@@ -75,6 +75,23 @@ const defaultBypassPrivateRouteAddress = [
   '2000::/3',
 ];
 
+int? _parseInt(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
+}
+
+bool? _parseBool(dynamic value) {
+  if (value == null) return null;
+  if (value is bool) return value;
+  if (value is String) {
+    if (value.toLowerCase() == 'true') return true;
+    if (value.toLowerCase() == 'false') return false;
+  }
+  return null;
+}
+
 @freezed
 abstract class ProxyGroup with _$ProxyGroup {
   const factory ProxyGroup({
@@ -82,16 +99,16 @@ abstract class ProxyGroup with _$ProxyGroup {
     @JsonKey(fromJson: GroupType.parseProfileType) required GroupType type,
     List<String>? proxies,
     List<String>? use,
-    int? interval,
-    bool? lazy,
+    @JsonKey(fromJson: _parseInt) int? interval,
+    @JsonKey(fromJson: _parseBool) bool? lazy,
     String? url,
-    int? timeout,
-    @JsonKey(name: 'max-failed-times') int? maxFailedTimes,
+    @JsonKey(fromJson: _parseInt) int? timeout,
+    @JsonKey(name: 'max-failed-times', fromJson: _parseInt) int? maxFailedTimes,
     String? filter,
     @JsonKey(name: 'expected-filter') String? excludeFilter,
     @JsonKey(name: 'exclude-type') String? excludeType,
     @JsonKey(name: 'expected-status') dynamic expectedStatus,
-    bool? hidden,
+    @JsonKey(fromJson: _parseBool) bool? hidden,
     String? icon,
   }) = _ProxyGroup;
 

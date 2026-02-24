@@ -13,16 +13,16 @@ _ProxyGroup _$ProxyGroupFromJson(Map<String, dynamic> json) => _ProxyGroup(
       ?.map((e) => e as String)
       .toList(),
   use: (json['use'] as List<dynamic>?)?.map((e) => e as String).toList(),
-  interval: (json['interval'] as num?)?.toInt(),
-  lazy: json['lazy'] as bool?,
+  interval: _parseInt(json['interval']),
+  lazy: _parseBool(json['lazy']),
   url: json['url'] as String?,
-  timeout: (json['timeout'] as num?)?.toInt(),
-  maxFailedTimes: (json['max-failed-times'] as num?)?.toInt(),
+  timeout: _parseInt(json['timeout']),
+  maxFailedTimes: _parseInt(json['max-failed-times']),
   filter: json['filter'] as String?,
   excludeFilter: json['expected-filter'] as String?,
   excludeType: json['exclude-type'] as String?,
   expectedStatus: json['expected-status'],
-  hidden: json['hidden'] as bool?,
+  hidden: _parseBool(json['hidden']),
   icon: json['icon'] as String?,
 );
 
