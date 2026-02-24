@@ -56,7 +56,9 @@ class ApplicationState extends ConsumerState<Application> {
       }
       await globalState.appController.init();
       globalState.appController.initLink();
-      app.initShortcuts();
+      if (system.isAndroid) {
+        app.initShortcuts();
+      }
     });
   }
 
