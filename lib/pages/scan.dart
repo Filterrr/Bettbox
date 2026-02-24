@@ -19,6 +19,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   MobileScannerController controller = MobileScannerController(
     detectionSpeed: DetectionSpeed.noDuplicates,
     formats: const [BarcodeFormat.qrCode],
+    autoStart: false, // Disable autoStart to manually control initialization
   );
 
   StreamSubscription<Object?>? _subscription;
@@ -30,6 +31,10 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _subscription = controller.barcodes.listen(_handleBarcode);
+    // Check permission and start camera
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkCameraPermission();
+    });
   }
 
   void _handleBarcode(BarcodeCapture barcodeCapture) {
@@ -51,29 +56,48 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         return;
       case AppLifecycleState.resumed:
         _subscription ??= controller.barcodes.listen(_handleBarcode);
-        // 从设置返回时重新检查权限
-        unawaited(_checkCameraPermission());
+        // Recheck permission when returning from settings
+        _checkCameraPermission();
         return;
       case AppLifecycleState.inactive:
         unawaited(_subscription?.cancel());
         _subscription = null;
-        unawaited(controller.stop());
+        if (controller.value.isRunning) {
+          unawaited(controller.stop());
+        }
         return;
     }
   }
 
   Future<void> _checkCameraPermission() async {
+    if (_permissionChecking) return; // Prevent concurrent checks
+    
+    setState(() {
+      _permissionChecking = true;
+    });
+    
     final granted = await app.hasCameraPermission();
     if (!mounted) return;
+    
     setState(() {
       _permissionDenied = !granted;
       _permissionChecking = false;
     });
+    
     if (!granted) {
-      unawaited(controller.stop());
+      if (controller.value.isRunning) {
+        await controller.stop();
+      }
     } else {
-      // 权限已授予，重新启动相机
-      unawaited(controller.start());
+      // Start camera only if not already running
+      if (!controller.value.isRunning && !controller.value.isInitialized) {
+        try {
+          await controller.start();
+        } catch (e) {
+          // Handle start error silently
+          commonPrint.log('Camera start error: $e');
+        }
+      }
     }
   }
 
