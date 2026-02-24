@@ -52,7 +52,7 @@
 
 <div dir="ltr">
 
-System Requirements：<br>
+**System Requirements：**<br>
 Windows 10 1607+<br>
 Linux Kernel 4.19+<br>
 macOS 12.0+<br>

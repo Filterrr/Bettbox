@@ -1,4 +1,6 @@
 # Miscellaneous
+*.md
+!.github/release_template.md
 *.class
 *.log
 *.pyc
