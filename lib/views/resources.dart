@@ -251,7 +251,9 @@ class _GeoDataListItemState extends State<GeoDataListItem> {
       silence: false,
       needLoading: false,
     );
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> updateGeoDateItem() async {
