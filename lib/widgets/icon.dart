@@ -92,6 +92,26 @@ class _CommonTargetIconState extends State<CommonTargetIcon> {
     }
   }
 
+  /// Validate and sanitize SVG file
+  Future<bool> _validateSvg(File file) async {
+    try {
+      final content = await file.readAsString();
+      // Check for invalid font-weight values
+      if (content.contains('font-weight:none') || 
+          content.contains('font-weight: none')) {
+        // Fix invalid font-weight
+        final fixed = content
+            .replaceAll('font-weight:none', 'font-weight:normal')
+            .replaceAll('font-weight: none', 'font-weight: normal');
+        await file.writeAsString(fixed);
+      }
+      return true;
+    } catch (e) {
+      commonPrint.log('SVG validation failed: $e');
+      return false;
+    }
+  }
+
   Future<void> _init() async {
     if (widget.src.isEmpty) {
       return;
@@ -111,6 +131,11 @@ class _CommonTargetIconState extends State<CommonTargetIcon> {
     // Get from cache first, no network check
     final fileInfo = await DefaultCacheManager().getFileFromCache(widget.src);
     if (fileInfo != null && mounted && widget.src.isNotEmpty) {
+      // Validate SVG files
+      if (widget.src.isSvg) {
+        await _validateSvg(fileInfo.file);
+      }
+      
       // Resize non-SVG images
       File? displayFile = fileInfo.file;
       if (!widget.src.isSvg) {
@@ -131,6 +156,11 @@ class _CommonTargetIconState extends State<CommonTargetIcon> {
     try {
       final file = await DefaultCacheManager().getSingleFile(widget.src);
       if (mounted && widget.src.isNotEmpty) {
+        // Validate SVG files
+        if (widget.src.isSvg) {
+          await _validateSvg(file);
+        }
+        
         // Resize non-SVG images
         File? displayFile = file;
         if (!widget.src.isSvg) {
@@ -174,20 +204,24 @@ class _CommonTargetIconState extends State<CommonTargetIcon> {
       );
     }
     if (_file != null) {
-      return widget.src.isSvg
-          ? SvgPicture.file(
-              _file!,
-              width: widget.size,
-              height: widget.size,
-              errorBuilder: (_, _, _) => _defaultIcon(),
-            )
-          : Image.file(
-              _file!,
-              gaplessPlayback: true,
-              // Don't use cacheWidth/cacheHeight
-              // File is already resized
-              errorBuilder: (_, _, _) => _defaultIcon(),
-            );
+      if (widget.src.isSvg) {
+        try {
+          return SvgPicture.file(
+            _file!,
+            width: widget.size,
+            height: widget.size,
+            placeholderBuilder: (_) => _defaultIcon(),
+          );
+        } catch (e) {
+          commonPrint.log('Failed to load SVG: $e');
+          return _defaultIcon();
+        }
+      }
+      return Image.file(
+        _file!,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => _defaultIcon(),
+      );
     }
     return _defaultIcon();
   }
