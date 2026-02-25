@@ -33,12 +33,6 @@ class SmartAutoStopManager extends ConsumerStatefulWidget {
 class _SmartAutoStopManagerState extends ConsumerState<SmartAutoStopManager> {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   String? _lastCheckedIp;
-  
-  // Debounce: max 2 actions in 3s window
-  int _actionCount = 0;
-  int _actionWindowStart = 0;
-  static const int _actionWindowMs = 3000; // 3s
-  static const int _maxActionsInWindow = 2;
 
   @override
   void initState() {
@@ -146,50 +140,20 @@ class _SmartAutoStopManagerState extends ConsumerState<SmartAutoStopManager> {
 
     if (shouldStop) {
       // Rule matched: VPN should be STOPPED
-      if (isRunning) {
-        if (!isSmartStopped) {
-          // Check debounce before stopping
-          if (!_canPerformAction()) {
-            commonPrint.log('Smart Auto Stop: Action limit reached, ignoring stop request');
-            return;
-          }
-          // Only mark as smart-stopped if we are currently running normally
-          ref.read(isSmartStoppedProvider.notifier).set(true);
-        }
+      if (isRunning && !isSmartStopped) {
+        // Only mark as smart-stopped if we are currently running normally
+        ref.read(isSmartStoppedProvider.notifier).set(true);
         commonPrint.log('Smart Auto Stop: Stopping VPN...');
         await _stopVpn();
       }
     } else {
       // Rule NOT matched: VPN should be RUNNING (if it was smart-stopped)
       if (!isRunning && isSmartStopped) {
-        // Check debounce before restarting
-        if (!_canPerformAction()) {
-          commonPrint.log('Smart Auto Stop: Action limit reached, ignoring restart request');
-          return;
-        }
         ref.read(isSmartStoppedProvider.notifier).set(false);
         commonPrint.log('Smart Auto Stop: Restarting VPN...');
         await _restartVpn();
       }
     }
-  }
-  
-  bool _canPerformAction() {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    
-    // Reset window if expired
-    if (now - _actionWindowStart > _actionWindowMs) {
-      _actionWindowStart = now;
-      _actionCount = 0;
-    }
-    
-    // Check if within limit
-    if (_actionCount < _maxActionsInWindow) {
-      _actionCount++;
-      return true;
-    }
-    
-    return false;
   }
 
   Future<String?> _getNativeLocalIpAddress() async {
