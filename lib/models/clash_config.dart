@@ -95,10 +95,7 @@ bool? _parseBool(dynamic value) {
 List<String>? _parseStringList(dynamic value) {
   if (value == null) return null;
   if (value is List) {
-    return value
-        .where((item) => item is String)
-        .map((item) => item as String)
-        .toList();
+    return value.whereType<String>().toList();
   }
   return null;
 }
