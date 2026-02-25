@@ -9,10 +9,8 @@ part of '../clash_config.dart';
 _ProxyGroup _$ProxyGroupFromJson(Map<String, dynamic> json) => _ProxyGroup(
   name: json['name'] as String,
   type: GroupType.parseProfileType(json['type'] as String),
-  proxies: (json['proxies'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
-  use: (json['use'] as List<dynamic>?)?.map((e) => e as String).toList(),
+  proxies: _parseStringList(json['proxies']),
+  use: _parseStringList(json['use']),
   interval: _parseInt(json['interval']),
   lazy: _parseBool(json['lazy']),
   url: json['url'] as String?,

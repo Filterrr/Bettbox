@@ -92,13 +92,24 @@ bool? _parseBool(dynamic value) {
   return null;
 }
 
+List<String>? _parseStringList(dynamic value) {
+  if (value == null) return null;
+  if (value is List) {
+    return value
+        .where((item) => item is String)
+        .map((item) => item as String)
+        .toList();
+  }
+  return null;
+}
+
 @freezed
 abstract class ProxyGroup with _$ProxyGroup {
   const factory ProxyGroup({
     required String name,
     @JsonKey(fromJson: GroupType.parseProfileType) required GroupType type,
-    List<String>? proxies,
-    List<String>? use,
+    @JsonKey(fromJson: _parseStringList) List<String>? proxies,
+    @JsonKey(fromJson: _parseStringList) List<String>? use,
     @JsonKey(fromJson: _parseInt) int? interval,
     @JsonKey(fromJson: _parseBool) bool? lazy,
     String? url,
