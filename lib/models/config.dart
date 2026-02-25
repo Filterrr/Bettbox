@@ -96,11 +96,8 @@ abstract class AppSettingProps with _$AppSettingProps {
     final props = json == null
         ? defaultAppSettingProps
         : AppSettingProps.fromJson(json);
-    // 确保这些设置始终为指定值，防止用户通过备份恢复改变此设置
-    return props.copyWith(
-      minimizeOnExit: true,
-      openLogs: true, // 强制开启日志捕获
-    );
+
+    return props.copyWith(minimizeOnExit: true, openLogs: true);
   }
 }
 
@@ -164,15 +161,21 @@ abstract class VpnProps with _$VpnProps {
 
   factory VpnProps.safeFromJson(Map<String, Object?>? json) {
     final props = json == null ? defaultVpnProps : VpnProps.fromJson(json);
-    // 安卓端强制关闭系统代理，防止用户通过备份恢复改变此设置
+    var safeProps = props;
+
     if (system.isAndroid) {
-      return props.copyWith(systemProxy: false);
+      safeProps = safeProps.copyWith(systemProxy: false);
     }
-    // FCM 优化开启时，强制关闭 allowBypass
-    if (props.fcmOptimization && system.isAndroid) {
-      return props.copyWith(allowBypass: false);
+
+    if (safeProps.fcmOptimization && system.isAndroid) {
+      safeProps = safeProps.copyWith(allowBypass: false);
     }
-    return props;
+
+    if (safeProps.smartAutoStop && safeProps.quickResponse) {
+      safeProps = safeProps.copyWith(quickResponse: false);
+    }
+
+    return safeProps;
   }
 }
 

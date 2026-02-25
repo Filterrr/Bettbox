@@ -98,7 +98,7 @@ class InputDelegate extends Delegate {
   final String title;
   final String value;
   final String? suffixText;
-  final Function(String? value) onChanged;
+  final Function(String? value)? onChanged;
   final FormFieldValidator<String>? validator;
 
   final String? resetValue;
@@ -251,10 +251,12 @@ class ListItem<T> extends StatelessWidget {
     void Function()? onTap,
     Widget? trailing,
     Widget? leading,
+    bool enabled = true,
   }) {
     return ListTile(
       key: key,
       dense: dense,
+      enabled: enabled,
       titleTextStyle: titleTextStyle,
       subtitleTextStyle: subtitleTextStyle,
       leading: leading ?? this.leading,
@@ -360,19 +362,25 @@ class ListItem<T> extends StatelessWidget {
     }
     if (delegate is InputDelegate) {
       final inputDelegate = delegate as InputDelegate;
+      final isEnabled = inputDelegate.onChanged != null;
       return _buildListTile(
-        onTap: () async {
-          final value = await globalState.showCommonDialog<String>(
-            child: InputDialog(
-              title: inputDelegate.title,
-              value: inputDelegate.value,
-              suffixText: inputDelegate.suffixText,
-              resetValue: inputDelegate.resetValue,
-              validator: inputDelegate.validator,
-            ),
-          );
-          inputDelegate.onChanged(value);
-        },
+        enabled: isEnabled,
+        onTap: isEnabled
+            ? () async {
+                final value = await globalState.showCommonDialog<String>(
+                  child: InputDialog(
+                    title: inputDelegate.title,
+                    value: inputDelegate.value,
+                    suffixText: inputDelegate.suffixText,
+                    resetValue: inputDelegate.resetValue,
+                    validator: inputDelegate.validator,
+                  ),
+                );
+                inputDelegate.onChanged!(
+                  value,
+                ); // We need to update InputDelegate to allow null
+              }
+            : null,
       );
     }
     if (delegate is CheckboxDelegate) {
@@ -399,12 +407,14 @@ class ListItem<T> extends StatelessWidget {
     }
     if (delegate is SwitchDelegate) {
       final switchDelegate = delegate as SwitchDelegate;
+      final isEnabled = switchDelegate.onChanged != null;
       return _buildListTile(
-        onTap: () {
-          if (switchDelegate.onChanged != null) {
-            switchDelegate.onChanged!(!switchDelegate.value);
-          }
-        },
+        enabled: isEnabled,
+        onTap: isEnabled
+            ? () {
+                switchDelegate.onChanged!(!switchDelegate.value);
+              }
+            : null,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

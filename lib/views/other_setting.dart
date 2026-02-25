@@ -20,38 +20,32 @@ class SmartAutoStopItem extends ConsumerWidget {
         system.isAndroid &&
         ref.watch(vpnSettingProvider.select((state) => state.quickResponse));
 
-    return Opacity(
-      opacity: isQuickResponseEnabled ? 0.38 : 1.0,
-      child: IgnorePointer(
-        ignoring: isQuickResponseEnabled,
-        child: ListItem.switchItem(
-          title: Text(appLocalizations.smartAutoStop),
-          subtitle: Text(appLocalizations.smartAutoStopDesc),
-          delegate: SwitchDelegate(
-            value: smartAutoStop,
-            onChanged: isQuickResponseEnabled
-                ? null
-                : (bool value) async {
-                    ref
-                        .read(vpnSettingProvider.notifier)
-                        .updateState(
-                          (state) => state.copyWith(
-                            smartAutoStop: value,
-                            quickResponse: value ? false : state.quickResponse,
-                          ),
-                        );
+    return ListItem.switchItem(
+      title: Text(appLocalizations.smartAutoStop),
+      subtitle: Text(appLocalizations.smartAutoStopDesc),
+      delegate: SwitchDelegate(
+        value: smartAutoStop,
+        onChanged: isQuickResponseEnabled
+            ? null
+            : (bool value) async {
+                ref
+                    .read(vpnSettingProvider.notifier)
+                    .updateState(
+                      (state) => state.copyWith(
+                        smartAutoStop: value,
+                        quickResponse: value ? false : state.quickResponse,
+                      ),
+                    );
 
-                    if (system.isAndroid) {
-                      if (value) {
-                        await service?.setQuickResponse(false);
-                      } else {
-                        // When turning off smart auto stop, no need to auto-turn-on quickResponse
-                        // User has to explicitly turn it on.
-                      }
-                    }
-                  },
-          ),
-        ),
+                if (system.isAndroid) {
+                  if (value) {
+                    await service?.setQuickResponse(false);
+                  } else {
+                    // When turning off smart auto stop, no need to auto-turn-on quickResponse
+                    // User has to explicitly turn it on.
+                  }
+                }
+              },
       ),
     );
   }
@@ -65,6 +59,10 @@ class NetworkMatchItem extends ConsumerWidget {
     final smartAutoStopNetworks = ref.watch(
       vpnSettingProvider.select((state) => state.smartAutoStopNetworks),
     );
+    final isQuickResponseEnabled =
+        system.isAndroid &&
+        ref.watch(vpnSettingProvider.select((state) => state.quickResponse));
+
     return ListItem.input(
       title: Text(appLocalizations.networkMatch),
       subtitle: Text(
@@ -75,15 +73,17 @@ class NetworkMatchItem extends ConsumerWidget {
       delegate: InputDelegate(
         title: appLocalizations.networkMatch,
         value: smartAutoStopNetworks,
-        onChanged: (String? value) {
-          if (value != null) {
-            ref
-                .read(vpnSettingProvider.notifier)
-                .updateState(
-                  (state) => state.copyWith(smartAutoStopNetworks: value),
-                );
-          }
-        },
+        onChanged: isQuickResponseEnabled
+            ? null
+            : (String? value) {
+                if (value != null) {
+                  ref
+                      .read(vpnSettingProvider.notifier)
+                      .updateState(
+                        (state) => state.copyWith(smartAutoStopNetworks: value),
+                      );
+                }
+              },
         validator: (String? value) {
           if (value == null || value.isEmpty) return null;
           return NetworkMatcher.getValidationError(
@@ -223,33 +223,27 @@ class QuickResponseItem extends ConsumerWidget {
       vpnSettingProvider.select((state) => state.smartAutoStop),
     );
 
-    return Opacity(
-      opacity: isSmartAutoStopEnabled ? 0.38 : 1.0,
-      child: IgnorePointer(
-        ignoring: isSmartAutoStopEnabled,
-        child: ListItem.switchItem(
-          title: Text(appLocalizations.quickResponse),
-          subtitle: Text(appLocalizations.quickResponseDesc),
-          delegate: SwitchDelegate(
-            value: quickResponse,
-            onChanged: isSmartAutoStopEnabled
-                ? null
-                : (bool value) async {
-                    ref
-                        .read(vpnSettingProvider.notifier)
-                        .updateState(
-                          (state) => state.copyWith(
-                            quickResponse: value,
-                            smartAutoStop: value ? false : state.smartAutoStop,
-                          ),
-                        );
+    return ListItem.switchItem(
+      title: Text(appLocalizations.quickResponse),
+      subtitle: Text(appLocalizations.quickResponseDesc),
+      delegate: SwitchDelegate(
+        value: quickResponse,
+        onChanged: isSmartAutoStopEnabled
+            ? null
+            : (bool value) async {
+                ref
+                    .read(vpnSettingProvider.notifier)
+                    .updateState(
+                      (state) => state.copyWith(
+                        quickResponse: value,
+                        smartAutoStop: value ? false : state.smartAutoStop,
+                      ),
+                    );
 
-                    if (system.isAndroid) {
-                      await service?.setQuickResponse(value);
-                    }
-                  },
-          ),
-        ),
+                if (system.isAndroid) {
+                  await service?.setQuickResponse(value);
+                }
+              },
       ),
     );
   }
