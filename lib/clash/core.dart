@@ -124,9 +124,17 @@ class ClashCore {
 
   Future<List<TrackerInfo>> getConnections() async {
     final res = await clashInterface.getConnections();
-    final connectionsData = json.decode(res) as Map;
-    final connectionsRaw = connectionsData['connections'] as List? ?? [];
-    return connectionsRaw.map((e) => TrackerInfo.fromJson(e)).toList();
+    if (res.isEmpty) {
+      return [];
+    }
+    try {
+      final connectionsData = json.decode(res) as Map;
+      final connectionsRaw = connectionsData['connections'] as List? ?? [];
+      return connectionsRaw.map((e) => TrackerInfo.fromJson(e)).toList();
+    } catch (e) {
+      commonPrint.log('Failed to parse connections: $e');
+      return [];
+    }
   }
 
   void closeConnection(String id) {
@@ -147,13 +155,18 @@ class ClashCore {
     if (externalProvidersRawString.isEmpty) {
       return [];
     }
-    return Isolate.run<List<ExternalProvider>>(() {
-      final externalProviders =
-          (json.decode(externalProvidersRawString) as List<dynamic>)
-              .map((item) => ExternalProvider.fromJson(item))
-              .toList();
-      return externalProviders;
-    });
+    try {
+      return Isolate.run<List<ExternalProvider>>(() {
+        final externalProviders =
+            (json.decode(externalProvidersRawString) as List<dynamic>)
+                .map((item) => ExternalProvider.fromJson(item))
+                .toList();
+        return externalProviders;
+      });
+    } catch (e) {
+      commonPrint.log('Failed to parse external providers: $e');
+      return [];
+    }
   }
 
   Future<ExternalProvider?> getExternalProvider(
@@ -165,10 +178,12 @@ class ClashCore {
     if (externalProvidersRawString.isEmpty) {
       return null;
     }
-    if (externalProvidersRawString.isEmpty) {
+    try {
+      return ExternalProvider.fromJson(json.decode(externalProvidersRawString));
+    } catch (e) {
+      commonPrint.log('Failed to parse external provider: $e');
       return null;
     }
-    return ExternalProvider.fromJson(json.decode(externalProvidersRawString));
   }
 
   Future<String> updateGeoData(UpdateGeoDataParams params) {
@@ -199,7 +214,15 @@ class ClashCore {
 
   Future<Delay> getDelay(String url, String proxyName) async {
     final data = await clashInterface.asyncTestDelay(url, proxyName);
-    return Delay.fromJson(json.decode(data));
+    if (data.isEmpty) {
+      throw Exception('Empty delay response');
+    }
+    try {
+      return Delay.fromJson(json.decode(data));
+    } catch (e) {
+      commonPrint.log('Failed to parse delay: $e');
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> getConfig(String id) async {
@@ -217,7 +240,12 @@ class ClashCore {
     if (trafficString.isEmpty) {
       return Traffic();
     }
-    return Traffic.fromMap(json.decode(trafficString));
+    try {
+      return Traffic.fromMap(json.decode(trafficString));
+    } catch (e) {
+      commonPrint.log('Failed to parse traffic: $e');
+      return Traffic();
+    }
   }
 
   Future<IpInfo?> getCountryCode(String ip) async {
@@ -233,7 +261,12 @@ class ClashCore {
     if (totalTrafficString.isEmpty) {
       return Traffic();
     }
-    return Traffic.fromMap(json.decode(totalTrafficString));
+    try {
+      return Traffic.fromMap(json.decode(totalTrafficString));
+    } catch (e) {
+      commonPrint.log('Failed to parse total traffic: $e');
+      return Traffic();
+    }
   }
 
   Future<int> getMemory() async {
