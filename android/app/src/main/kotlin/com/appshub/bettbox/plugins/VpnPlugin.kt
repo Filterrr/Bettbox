@@ -282,8 +282,13 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // Check if within limit
             if (disconnectCount < maxDisconnectsInWindow) {
                 disconnectCount++
-                android.util.Log.d("VpnPlugin", "Quick Response: Network changed, disconnecting ($disconnectCount/$maxDisconnectsInWindow)")
-                handleStop()
+                android.util.Log.d("VpnPlugin", "Quick Response: Network changed, closing connections ($disconnectCount/$maxDisconnectsInWindow)")
+                // Notify Dart layer to close connections instead of stopping VPN
+                scope.launch {
+                    withContext(Dispatchers.Main) {
+                        flutterMethodChannel.invokeMethod("closeConnections", null)
+                    }
+                }
             } else {
                 android.util.Log.d("VpnPlugin", "Quick Response: Disconnect limit reached, ignoring")
             }
