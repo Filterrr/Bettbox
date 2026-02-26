@@ -30,7 +30,7 @@ class ServicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         }
 
         "stopVpn" -> {
-            GlobalState.getCurrentVPNPlugin()?.handleStop()
+            VpnPlugin.handleStop(force = true)
             result.success(true)
         }
 

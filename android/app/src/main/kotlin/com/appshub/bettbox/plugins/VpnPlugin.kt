@@ -433,9 +433,9 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         return uidPageNameMap[nextUid] ?: ""
     }
 
-    fun handleStop() {
+    fun handleStop(force: Boolean = false) {
         GlobalState.runLock.withLock {
-            if (GlobalState.currentRunState == RunState.STOP) return
+            if (!force && GlobalState.currentRunState == RunState.STOP) return
             GlobalState.updateRunState(RunState.STOP)
             lastStartForegroundParams = null
             // Uninstall SuspendModule
@@ -445,6 +445,16 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             Core.stopTun()
             // Then stop service
             bettBoxService?.stop()
+            
+            if (force) {
+                try {
+                    val appContext = BettboxApplication.getAppContext()
+                    appContext.stopService(android.content.Intent(appContext, BettboxVpnService::class.java))
+                } catch (e: Exception) {
+                    android.util.Log.e("VpnPlugin", "Force stop service failed: ${e.message}")
+                }
+            }
+            
             GlobalState.handleTryDestroy()
         }
     }
