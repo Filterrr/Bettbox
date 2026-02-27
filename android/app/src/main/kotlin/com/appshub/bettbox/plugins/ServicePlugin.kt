@@ -99,6 +99,19 @@ class ServicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             result.success(true)
         }
 
+        "cleanRoutes" -> {
+            try {
+                val appContext = com.appshub.bettbox.BettboxApplication.getAppContext()
+                val intent = android.content.Intent(appContext, com.appshub.bettbox.services.BettboxVpnService::class.java)
+                intent.action = "com.appshub.bettbox.CLEAN_ROUTES"
+                appContext.startService(intent)
+                result.success(true)
+            } catch (e: Exception) {
+                android.util.Log.e("ServicePlugin", "Failed to start service for route cleanup", e)
+                result.error("CLEAN_ROUTES_FAILED", e.message, null)
+            }
+        }
+
         "init" -> {
             GlobalState.getCurrentAppPlugin()
                 ?.requestNotificationsPermission()

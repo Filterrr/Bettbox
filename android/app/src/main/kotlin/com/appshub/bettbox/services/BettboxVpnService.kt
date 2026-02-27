@@ -232,6 +232,26 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         return super.onUnbind(intent)
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "com.appshub.bettbox.CLEAN_ROUTES") {
+            try {
+                with(Builder()) {
+                    addAddress("10.0.0.1", 32)
+                    addRoute("0.0.0.0", 0)
+                    setSession("Bettbox Cleanup")
+                    val fd = establish()
+                    fd?.close()
+                    Log.i("BettboxVpnService", "Dummy VPN established and closed for cleanup")
+                }
+            } catch (e: Exception) {
+                Log.e("BettboxVpnService", "Failed to clean routes", e)
+            }
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
     override fun onDestroy() {
         stop()
         super.onDestroy()

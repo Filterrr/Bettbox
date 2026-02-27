@@ -75,6 +75,10 @@ class Service {
       'enabled': enabled,
     });
   }
+
+  Future<bool?> cleanRoutes() async {
+    return await methodChannel.invokeMethod<bool>('cleanRoutes');
+  }
 }
 
 Service? get service =>

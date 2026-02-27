@@ -26,6 +26,7 @@ import 'models/models.dart';
 import 'views/profiles/override_profile.dart';
 
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:bett_box/plugins/service.dart';
 
 class AppController {
   int? lastProfileModified;
@@ -88,18 +89,11 @@ class AppController {
     }
   }
 
-  bool _pendingRecoveryForceApply = false;
-
   Future<void> updateStatus(bool isStart) async {
     if (isStart) {
       // Quick start
       await _fastStart();
 
-      if (system.isAndroid && _pendingRecoveryForceApply) {
-        commonPrint.log('Force applying profile for Android recovery');
-        _pendingRecoveryForceApply = false;
-        await applyProfile(silence: true);
-      }
       // Lazy load
     } else {
       await globalState.handleStop();
@@ -343,14 +337,6 @@ class AppController {
     final index = hotKeyActions.indexWhere(
       (item) => item.action == hotKeyAction.action,
     );
-    if (index == -1) {
-      _ref.read(hotKeyActionsProvider.notifier).value = List.from(hotKeyActions)
-        ..add(hotKeyAction);
-    } else {
-      _ref.read(hotKeyActionsProvider.notifier).value = List.from(hotKeyActions)
-        ..[index] = hotKeyAction;
-    }
-
     _ref.read(hotKeyActionsProvider.notifier).value = index == -1
         ? (List.from(hotKeyActions)..add(hotKeyAction))
         : (List.from(hotKeyActions)..[index] = hotKeyAction);
@@ -790,9 +776,18 @@ class AppController {
 
     if (needRecovery) {
       commonPrint.log('Handling Recovery: $recoveryReason');
-      _pendingRecoveryForceApply = true;
       await _performDeepClean();
       commonPrint.log('Cleaned residual states successfully.');
+    }
+
+    final prefs = await preferences.sharedPreferencesCompleter.future;
+    final isVpnRunningInBackground = prefs?.getBool('is_vpn_running') ?? false;
+    final isActuallyRunning = system.isAndroid && isVpnRunningInBackground;
+
+    if (isActuallyRunning && !globalState.isStart) {
+      globalState.startTime = DateTime.now();
+      await _syncRunningState();
+      return;
     }
 
     final shouldStart =
@@ -812,6 +807,12 @@ class AppController {
     }
   }
 
+  Future<void> _syncRunningState() async {
+    globalState.startUpdateTasks([updateRunTime, updateTraffic]);
+    await applyProfile(silence: true);
+    addCheckIpNumDebounce();
+  }
+
   Future<(bool, String)> _detectRecoveryReason() async {
     final results = await Future.wait<dynamic>([
       preferences.sharedPreferencesCompleter.future,
@@ -826,74 +827,57 @@ class AppController {
     final currentVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
     final lastRunVersion = prefs?.getString('last_run_version');
 
+    // Update version tracking
+    if (lastRunVersion != currentVersion) {
+      prefs?.setString('last_run_version', currentVersion);
+    }
+
     if (system.isAndroid) {
       final savedApkUpdateTime = prefs?.getInt('apk_last_update_time') ?? 0;
-      bool isReinstall = false;
-      String reason = '';
-
-      if (savedApkUpdateTime != 0 && savedApkUpdateTime != apkLastUpdateTime) {
-        commonPrint.log(
-          'Detected by time: $savedApkUpdateTime -> $apkLastUpdateTime',
-        );
-        isReinstall = true;
-        reason = 'APK reinstall/upgrade';
-      }
-
-      if (lastRunVersion != null && lastRunVersion != currentVersion) {
-        commonPrint.log(
-          'Detected by version: $lastRunVersion -> $currentVersion',
-        );
-        isReinstall = true;
-        reason = 'Version change';
-      }
+      final isTimeChange =
+          savedApkUpdateTime != 0 && savedApkUpdateTime != apkLastUpdateTime;
+      final isVersionChange =
+          lastRunVersion != null && lastRunVersion != currentVersion;
+      final isReinstall = isTimeChange || isVersionChange;
 
       final isVpnRunningFlag = prefs?.getBool('is_vpn_running') ?? false;
-      final isAbnormalExit = !globalState.isStart && isVpnRunningFlag;
-      if (isAbnormalExit && !isReinstall) {
-        commonPrint.log('Abnormal exit detected');
-        reason = 'Abnormal exit';
-      }
+      final isAbnormalExit =
+          !globalState.isStart && isVpnRunningFlag && !isReinstall;
 
       if (savedApkUpdateTime != apkLastUpdateTime) {
         prefs?.setInt('apk_last_update_time', apkLastUpdateTime);
       }
-      if (lastRunVersion != currentVersion) {
-        prefs?.setString('last_run_version', currentVersion);
-      }
 
-      final needRecovery =
-          (!globalState.isStart && isReinstall) || isAbnormalExit;
-      return (needRecovery, reason);
+      final reason = isReinstall
+          ? (isVersionChange ? 'Version change' : 'APK reinstall/upgrade')
+          : (isAbnormalExit ? 'Abnormal exit' : '');
+
+      return ((!globalState.isStart && isReinstall) || isAbnormalExit, reason);
     }
 
     if (system.isDesktop) {
-      bool needRecovery = false;
-      String reason = '';
-
-      // Skip recovery if core is already running
-      if (!globalState.isStart &&
+      final isVersionChange =
+          !globalState.isStart &&
           lastRunVersion != null &&
-          lastRunVersion != currentVersion) {
+          lastRunVersion != currentVersion;
+      final wasTunRunning = prefs?.getBool('is_tun_running') ?? false;
+      final isTunConflict = !globalState.isStart && wasTunRunning;
+
+      if (isVersionChange) {
         commonPrint.log(
           'Desktop version change detected: $lastRunVersion -> $currentVersion',
         );
-        needRecovery = true;
-        reason = 'Version update';
       }
-
-      final wasTunRunning = prefs?.getBool('is_tun_running') ?? false;
-      final isTunConflict = !globalState.isStart && wasTunRunning;
       if (isTunConflict) {
         commonPrint.log('Desktop TUN resource conflict detected');
-        needRecovery = true;
-        reason = 'TUN resource conflict';
       }
 
-      if (lastRunVersion != currentVersion) {
-        prefs?.setString('last_run_version', currentVersion);
-      }
-
-      return (needRecovery, reason);
+      return (
+        isVersionChange || isTunConflict,
+        isVersionChange
+            ? 'Version update'
+            : (isTunConflict ? 'TUN resource conflict' : ''),
+      );
     }
 
     return (false, '');
@@ -901,10 +885,11 @@ class AppController {
 
   Future<void> _performDeepClean() async {
     await globalState.handleStop();
-
-    for (int i = 0; i < 10; i++) {
-      await Future.delayed(const Duration(milliseconds: 100));
+    if (system.isAndroid) {
+      commonPrint.log('Executing native route cleanup');
+      await service?.cleanRoutes();
     }
+    await Future.delayed(const Duration(seconds: 1));
   }
 
   void setDelay(Delay delay) {
@@ -1657,21 +1642,7 @@ class AppController {
 
   /// Partial restore
   void _recoveryLimited(Config config, RecoveryOption recoveryOption) {
-    final recoveryStrategy = _ref.read(
-      appSettingProvider.select((state) => state.recoveryStrategy),
-    );
-    final profiles = config.profiles;
-
-    // Restore subscriptions
-    if (recoveryStrategy == RecoveryStrategy.override) {
-      // Override mode: replace all subscriptions
-      _ref.read(profilesProvider.notifier).value = profiles;
-    } else {
-      // Merge mode: add subscriptions one by one
-      for (final profile in profiles) {
-        _ref.read(profilesProvider.notifier).setProfile(profile);
-      }
-    }
+    _restoreProfiles(config.profiles);
 
     // Android: restore app list
     if (system.isAndroid) {
@@ -1682,6 +1653,31 @@ class AppController {
                 state.copyWith(accessControl: config.vpnProps.accessControl),
           );
     }
+  }
+
+  /// Full restore
+  void _recovery(Config config, RecoveryOption recoveryOption) {
+    _restoreProfiles(config.profiles);
+
+    if (recoveryOption == RecoveryOption.onlyProfiles) return;
+
+    // Restore settings
+    _restoreSettings(config);
+  }
+
+  /// Restore profiles
+  void _restoreProfiles(List<Profile> profiles) {
+    final recoveryStrategy = _ref.read(
+      appSettingProvider.select((state) => state.recoveryStrategy),
+    );
+
+    if (recoveryStrategy == RecoveryStrategy.override) {
+      _ref.read(profilesProvider.notifier).value = profiles;
+    } else {
+      for (final profile in profiles) {
+        _ref.read(profilesProvider.notifier).setProfile(profile);
+      }
+    }
 
     // Ensure current profile exists
     final currentProfile = _ref.read(currentProfileProvider);
@@ -1690,108 +1686,51 @@ class AppController {
     }
   }
 
-  /// Full restore
-  void _recovery(Config config, RecoveryOption recoveryOption) {
-    final recoveryStrategy = _ref.read(
-      appSettingProvider.select((state) => state.recoveryStrategy),
-    );
-    final profiles = config.profiles;
-
-    // Restore subscriptions
-    if (recoveryStrategy == RecoveryStrategy.override) {
-      // Override mode: replace all subscriptions
-      _ref.read(profilesProvider.notifier).value = profiles;
+  /// Restore settings
+  void _restoreSettings(Config config) {
+    // 1. Clash config
+    if (system.isDesktop) {
+      final currentTunEnable = _ref.read(patchClashConfigProvider).tun.enable;
+      _ref.read(patchClashConfigProvider.notifier).value = config
+          .patchClashConfig
+          .copyWith
+          .tun(enable: currentTunEnable);
     } else {
-      // Merge mode: add subscriptions one by one
-      for (final profile in profiles) {
-        _ref.read(profilesProvider.notifier).setProfile(profile);
-      }
+      _ref.read(patchClashConfigProvider.notifier).value =
+          config.patchClashConfig;
     }
 
-    final onlyProfiles = recoveryOption == RecoveryOption.onlyProfiles;
-    if (!onlyProfiles) {
-      // Restore settings
+    // 2. App settings with merged dashboard widgets
+    final currentAppSetting = _ref.read(appSettingProvider);
+    final mergedWidgets = _mergeDashboardWidgets(
+      currentAppSetting.dashboardWidgets,
+      config.appSetting.dashboardWidgets,
+    );
+    _ref.read(appSettingProvider.notifier).value = config.appSetting.copyWith(
+      dashboardWidgets: mergedWidgets,
+    );
 
-      // 1. Clash config
-      if (system.isDesktop) {
-        // Desktop: preserve current TUN state, avoid mobile backup override
-        final currentTunEnable = _ref.read(patchClashConfigProvider).tun.enable;
-        _ref.read(patchClashConfigProvider.notifier).value = config
-            .patchClashConfig
-            .copyWith
-            .tun(enable: currentTunEnable);
-      } else {
-        // Mobile: restore directly
-        _ref.read(patchClashConfigProvider.notifier).value =
-            config.patchClashConfig;
-      }
+    // 3. Restore other settings
+    _ref.read(currentProfileIdProvider.notifier).value =
+        config.currentProfileId;
+    _ref.read(appDAVSettingProvider.notifier).value = config.dav;
+    _ref.read(themeSettingProvider.notifier).value = config.themeProps;
+    _ref.read(proxiesStyleSettingProvider.notifier).value = config.proxiesStyle;
+    _ref.read(overrideDnsProvider.notifier).value = config.overrideDns;
+    _ref.read(scriptStateProvider.notifier).value = config.scriptProps;
 
-      // 2. App settings
-      final currentAppSetting = _ref.read(appSettingProvider);
-      final backupAppSetting = config.appSetting;
+    // 4. Platform-specific settings
+    if (system.isDesktop) {
+      _ref.read(windowSettingProvider.notifier).value = config.windowProps;
+      _ref.read(networkSettingProvider.notifier).value = config.networkProps;
+      _ref.read(hotKeyActionsProvider.notifier).value = config.hotKeyActions;
 
-      // Merge dashboardWidgets: preserve platform-specific widgets
-      final currentWidgets = currentAppSetting.dashboardWidgets;
-      final backupWidgets = backupAppSetting.dashboardWidgets;
-      final mergedWidgets = _mergeDashboardWidgets(
-        currentWidgets,
-        backupWidgets,
+      final currentVpnProps = _ref.read(vpnSettingProvider);
+      _ref.read(vpnSettingProvider.notifier).value = config.vpnProps.copyWith(
+        enable: currentVpnProps.enable,
       );
-
-      _ref.read(appSettingProvider.notifier).value = backupAppSetting.copyWith(
-        dashboardWidgets: mergedWidgets,
-      );
-
-      // 3. Restore current profile ID
-      _ref.read(currentProfileIdProvider.notifier).value =
-          config.currentProfileId;
-
-      // 4. Restore WebDAV settings
-      _ref.read(appDAVSettingProvider.notifier).value = config.dav;
-
-      // 5. Restore theme settings
-      _ref.read(themeSettingProvider.notifier).value = config.themeProps;
-
-      // 6. Restore window settings (desktop only)
-      if (system.isDesktop) {
-        _ref.read(windowSettingProvider.notifier).value = config.windowProps;
-      }
-
-      // 7. VPN settings
-      if (system.isAndroid) {
-        // Android: restore VPN settings
-        _ref.read(vpnSettingProvider.notifier).value = config.vpnProps;
-      } else if (system.isDesktop) {
-        // Desktop: restore network settings, preserve TUN state
-        final currentVpnProps = _ref.read(vpnSettingProvider);
-        _ref.read(networkSettingProvider.notifier).value = config.networkProps;
-
-        // Only restore non-platform-specific VPN settings
-        _ref.read(vpnSettingProvider.notifier).value = config.vpnProps.copyWith(
-          enable: currentVpnProps.enable, // Preserve current TUN state
-        );
-      }
-
-      // 8. Restore proxy style
-      _ref.read(proxiesStyleSettingProvider.notifier).value =
-          config.proxiesStyle;
-
-      // 9. Restore DNS override settings
-      _ref.read(overrideDnsProvider.notifier).value = config.overrideDns;
-
-      // 10. Restore hotkey settings (desktop only)
-      if (system.isDesktop) {
-        _ref.read(hotKeyActionsProvider.notifier).value = config.hotKeyActions;
-      }
-
-      // 11. Restore script settings
-      _ref.read(scriptStateProvider.notifier).value = config.scriptProps;
-    }
-
-    // Ensure current profile exists
-    final currentProfile = _ref.read(currentProfileProvider);
-    if (currentProfile == null && profiles.isNotEmpty) {
-      _ref.read(currentProfileIdProvider.notifier).value = profiles.first.id;
+    } else if (system.isAndroid) {
+      _ref.read(vpnSettingProvider.notifier).value = config.vpnProps;
     }
   }
 
@@ -1873,16 +1812,14 @@ class AppController {
     bool needLoading = false,
     bool silence = true,
   }) async {
-    final realSilence = needLoading == true ? true : silence;
     try {
       if (needLoading) {
         _ref.read(loadingProvider.notifier).value = true;
       }
-      final res = await futureFunction();
-      return res;
+      return await futureFunction();
     } catch (e) {
       commonPrint.log('$e');
-      if (realSilence) {
+      if (needLoading || silence) {
         globalState.showNotifier(e.toString());
       } else {
         globalState.showMessage(
