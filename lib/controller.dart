@@ -88,11 +88,18 @@ class AppController {
     }
   }
 
+  bool _pendingRecoveryForceApply = false;
+
   Future<void> updateStatus(bool isStart) async {
     if (isStart) {
       // Quick start
       await _fastStart();
 
+      if (system.isAndroid && _pendingRecoveryForceApply) {
+        commonPrint.log('Force applying profile for Android recovery');
+        _pendingRecoveryForceApply = false;
+        await applyProfile(silence: true);
+      }
       // Lazy load
     } else {
       await globalState.handleStop();
@@ -783,6 +790,7 @@ class AppController {
 
     if (needRecovery) {
       commonPrint.log('Handling Recovery: $recoveryReason');
+      _pendingRecoveryForceApply = true;
       await _performDeepClean();
       commonPrint.log('Cleaned residual states successfully.');
     }
@@ -793,10 +801,6 @@ class AppController {
     if (shouldStart) {
       try {
         await updateStatus(true);
-        if (system.isAndroid && needRecovery) {
-          commonPrint.log('Force applying profile for Android');
-          await applyProfile(silence: true);
-        }
       } catch (e) {
         commonPrint.log('Auto start failed: $e');
         await applyProfile();
