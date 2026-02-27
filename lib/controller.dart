@@ -791,7 +791,7 @@ class AppController {
     }
 
     final shouldStart =
-        globalState.isStart || (!isActuallyRunning && _ref.read(appSettingProvider).autoRun);
+        globalState.isStart || _ref.read(appSettingProvider).autoRun;
 
     if (shouldStart) {
       try {
