@@ -93,7 +93,7 @@ jobs:
       - name: Setup Golang
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.compatible == true && '1.22.x' || '1.26.x' }}
+          go-version: ${{ matrix.compatible == true && '1.22.x' || '1.25.x' }}
           cache-dependency-path: core/go.sum
 
       - name: Setup Flutter
