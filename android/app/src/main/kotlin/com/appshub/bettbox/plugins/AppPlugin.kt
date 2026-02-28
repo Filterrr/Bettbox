@@ -399,6 +399,9 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
                 result.success(packageInfo?.lastUpdateTime ?: 0L)
             }
 
+                result.success(GlobalState.isVpnServiceRunning())
+            }
+
             "isIgnoringBatteryOptimizations" -> {
                 result.success(isIgnoringBatteryOptimizations())
             }

@@ -370,6 +370,15 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         }
     }
 
+    fun isServiceRunning(): Boolean {
+        return bettBoxService != null && isBind && GlobalState.currentRunState == RunState.START
+    }
+
+
+    fun getServiceStartTime(): Long? {
+        return null // Can be extended if needed
+    }
+
     private fun handleStartService() {
         if (bettBoxService == null) {
             bindService()

@@ -60,6 +60,12 @@ class AppController {
     });
   }
 
+  /// 合并 applyProfile + addCheckIpNumDebounce
+  Future<void> _applyAndScheduleUpdate({bool silence = false}) async {
+    await applyProfile(silence: silence);
+    addCheckIpNumDebounce();
+  }
+
   void applyProfileDebounce({bool silence = false}) {
     debouncer.call(FunctionTag.applyProfile, (silence) {
       applyProfile(silence: silence);
@@ -768,6 +774,17 @@ class AppController {
   }
 
   Future<void> _initStatus() async {
+    // Step 1: Check VPN
+    final isVpnRunning = await _checkVpnRunning();
+
+    if (isVpnRunning && !globalState.isStart) {
+      // Service is running (from tile or background), sync state
+      commonPrint.log('VPN running in background, syncing state');
+      await _syncRunningState();
+      return;
+    }
+
+    // Step 2: Check if recovery is needed
     if (globalState.isStart) {
       await globalState.updateStartTime();
     }
@@ -780,16 +797,7 @@ class AppController {
       commonPrint.log('Cleaned residual states successfully.');
     }
 
-    final prefs = await preferences.sharedPreferencesCompleter.future;
-    final isVpnRunningInBackground = prefs?.getBool('is_vpn_running') ?? false;
-    final isActuallyRunning = system.isAndroid && isVpnRunningInBackground;
-
-    if (isActuallyRunning && !globalState.isStart) {
-      globalState.startTime = DateTime.now();
-      await _syncRunningState();
-      return;
-    }
-
+    // Step 3: Determine if should start based on state and autoRun
     final shouldStart =
         globalState.isStart || _ref.read(appSettingProvider).autoRun;
 
@@ -798,19 +806,34 @@ class AppController {
         await updateStatus(true);
       } catch (e) {
         commonPrint.log('Auto start failed: $e');
-        await applyProfile();
-        addCheckIpNumDebounce();
+        await _applyAndScheduleUpdate();
       }
     } else {
-      await applyProfile();
-      addCheckIpNumDebounce();
+      await _applyAndScheduleUpdate();
     }
   }
 
+  Future<bool> _checkVpnRunning() async {
+    if (!system.isAndroid) return globalState.isStart;
+
+    // First try: Native active check (most reliable)
+    try {
+      final isRunning = await app.checkVpnRunning();
+      if (isRunning) return true;
+    } catch (e) {
+      commonPrint.log('Native VPN check failed: $e');
+    }
+
+    // Fallback: SharedPreferences flag
+    final prefs = await preferences.sharedPreferencesCompleter.future;
+    return prefs?.getBool('is_vpn_running') ?? false;
+  }
+
+  /// Sync UI state when VPN is already running
   Future<void> _syncRunningState() async {
+    globalState.startTime = DateTime.now();
     globalState.startUpdateTasks([updateRunTime, updateTraffic]);
-    await applyProfile(silence: true);
-    addCheckIpNumDebounce();
+    await _applyAndScheduleUpdate(silence: true);
   }
 
   Future<(bool, String)> _detectRecoveryReason() async {
@@ -840,19 +863,15 @@ class AppController {
           lastRunVersion != null && lastRunVersion != currentVersion;
       final isReinstall = isTimeChange || isVersionChange;
 
-      final isVpnRunningFlag = prefs?.getBool('is_vpn_running') ?? false;
-      final isAbnormalExit =
-          !globalState.isStart && isVpnRunningFlag && !isReinstall;
-
       if (savedApkUpdateTime != apkLastUpdateTime) {
         prefs?.setInt('apk_last_update_time', apkLastUpdateTime);
       }
 
       final reason = isReinstall
           ? (isVersionChange ? 'Version change' : 'APK reinstall/upgrade')
-          : (isAbnormalExit ? 'Abnormal exit' : '');
+          : '';
 
-      return ((!globalState.isStart && isReinstall) || isAbnormalExit, reason);
+      return (isReinstall && !globalState.isStart, reason);
     }
 
     if (system.isDesktop) {

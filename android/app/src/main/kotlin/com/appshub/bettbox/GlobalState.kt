@@ -1,10 +1,6 @@
 package com.appshub.bettbox
 
-import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.os.SystemClock
-import androidx.core.content.getSystemService
 import androidx.lifecycle.MutableLiveData
 import com.appshub.bettbox.plugins.AppPlugin
 import com.appshub.bettbox.plugins.ServicePlugin
@@ -19,6 +15,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+
+fun setupFlutterPlugins(engine: FlutterEngine) {
+    engine.plugins.add(VpnPlugin)
+    engine.plugins.add(AppPlugin())
+    engine.plugins.add(TilePlugin())
+    engine.plugins.add(ServicePlugin())
+}
 
 enum class RunState {
     START,
@@ -71,32 +74,14 @@ object GlobalState {
     fun syncStatus() {
         CoroutineScope(Dispatchers.Default).launch {
             val status = try {
-                VpnPlugin.getStatus() ?: isVpnActive()
+                VpnPlugin.getStatus() ?: false
             } catch (e: Exception) {
-                isVpnActive()
+                false
             }
             withContext(Dispatchers.Main){
                 val newState = if (status) RunState.START else RunState.STOP
                 updateRunState(newState)
             }
-        }
-    }
-
-    /**
-     * Check if VPN is actually active using system API.
-     * This works even after app process is killed and restarted.
-     */
-    fun isVpnActive(): Boolean {
-        val context = BettboxApplication.getAppContext()
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            ?: return false
-        
-        return try {
-            val activeNetwork = connectivityManager.activeNetwork
-            val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
-            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-        } catch (e: Exception) {
-            false
         }
     }
 
@@ -113,16 +98,12 @@ object GlobalState {
         return serviceEngine?.plugins?.get(VpnPlugin::class.java) as VpnPlugin?
     }
 
+    fun isVpnServiceRunning(): Boolean {
+        return getCurrentVPNPlugin()?.isServiceRunning() ?: false
+    }
+
     fun handleToggle() {
         if (!acquireToggleSlot()) return
-        
-        // Check if VPN is actually running
-        if (isVpnActive()) {
-            android.util.Log.d("GlobalState", "VPN is active, syncing state only")
-            updateRunState(RunState.START)
-            return
-        }
-        
         val starting = handleStart(skipDebounce = true)
         if (!starting) {
             handleStop(skipDebounce = true)
@@ -131,14 +112,6 @@ object GlobalState {
 
     fun handleStart(skipDebounce: Boolean = false): Boolean {
         if (!skipDebounce && !acquireToggleSlot()) return false
-        
-        // Check if VPN is actually running (even if state says STOP)
-        if (isVpnActive()) {
-            android.util.Log.d("GlobalState", "VPN is already active, syncing state")
-            updateRunState(RunState.START)
-            return false
-        }
-        
         if (currentRunState == RunState.STOP) {
             updateRunState(RunState.PENDING)
             runLock.lock()
@@ -199,10 +172,7 @@ object GlobalState {
         destroyServiceEngine()
         runLock.withLock {
             serviceEngine = FlutterEngine(BettboxApplication.getAppContext())
-            serviceEngine?.plugins?.add(VpnPlugin)
-            serviceEngine?.plugins?.add(AppPlugin())
-            serviceEngine?.plugins?.add(TilePlugin())
-            serviceEngine?.plugins?.add(ServicePlugin())
+            setupFlutterPlugins(serviceEngine!!)
             val vpnService = DartExecutor.DartEntrypoint(
                 FlutterInjector.instance().flutterLoader().findAppBundlePath(),
                 "_service"

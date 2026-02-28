@@ -152,8 +152,6 @@ Future<void> _service(List<String> flags) async {
       }
       await vpn?.start(clashLibHandler.getAndroidVpnOptions());
       clashLibHandler.startListener();
-      final prefs = await preferences.sharedPreferencesCompleter.future;
-      await prefs?.setBool('is_vpn_running', true);
     });
   }
 }

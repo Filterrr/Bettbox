@@ -118,13 +118,16 @@ class App {
     });
   }
 
-  /// 获取当前应用APK的最后更新时间（毫秒时间戳）
-  /// 用于检测APK是否被重新安装（包括升级、降级、覆盖安装等）
   Future<int> getSelfLastUpdateTime() async {
     final result = await methodChannel.invokeMethod<int>(
       'getSelfLastUpdateTime',
     );
     return result ?? 0;
+  }
+
+  Future<bool> checkVpnRunning() async {
+    final result = await methodChannel.invokeMethod<bool>('checkVpnRunning');
+    return result ?? false;
   }
 
   /// 检查应用是否在电池优化白名单中
