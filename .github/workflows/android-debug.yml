@@ -57,10 +57,10 @@ jobs:
           dart setup.dart android --arch universal --out core
           flutter build apk --dart-define=APP_ENV=pre --dart-define=SENTRY_DSN=dummy_dsn
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v7
         with:
-          name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}
+          name: bettbox-debug-universal-${{ github.sha }}
           path: build/app/outputs/flutter-apk/*.apk
-          compression-level: 9
-          overwrite: true
+          retention-days: 1
+          if-no-files-found: error
