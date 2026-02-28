@@ -55,7 +55,7 @@ jobs:
           flutter pub get
           dart run build_runner build -d
           dart setup.dart android --arch universal --out core
-          flutter build apk --debug --dart-define=APP_ENV=pre --dart-define=SENTRY_DSN=dummy_dsn
+          flutter build apk --dart-define=APP_ENV=pre --dart-define=SENTRY_DSN=dummy_dsn
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v6
