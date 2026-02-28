@@ -61,6 +61,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}
-          path: ./dist
+          path: build/app/outputs/flutter-apk/*.apk
           compression-level: 9
           overwrite: true
