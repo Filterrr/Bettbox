@@ -53,7 +53,7 @@ jobs:
       - name: Build Debug APK
         run: |
           flutter pub get
-          dart run build_runner build -d
+          dart run build_runner build -r
           dart setup.dart android --arch universal --out core
           flutter build apk --dart-define=APP_ENV=pre --dart-define=SENTRY_DSN=dummy_dsn
 
