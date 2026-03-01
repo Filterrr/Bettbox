@@ -1,4 +1,4 @@
-name: Android Debug Build
+name: Android Release Build
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   debug-build:
-    name: Build Flutter Android Debug
+    name: Build Flutter Android Release
     runs-on: ubuntu-latest
 
     steps:
@@ -50,14 +50,14 @@ jobs:
           restore-keys: |
             flutter-deps-${{ runner.os }}-
 
-      - name: Build Debug APK
+      - name: Build Release APK
         run: |
           flutter pub get
           dart run build_runner build -d
           dart setup.dart android --arch universal --out core
           flutter build apk --release --dart-define=APP_ENV=prod --dart-define=SENTRY_DSN=dummy_dsn
 
-      - name: Upload Debug APK
+      - name: Upload Release APK
         uses: actions/upload-artifact@v7
         with:
           name: bettbox-debug-universal-${{ github.sha }}
