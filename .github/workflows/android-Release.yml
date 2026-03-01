@@ -1,0 +1,68 @@
+name: Android Release Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+
+jobs:
+  debug-build:
+    name: Build Flutter Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 30 # 防止异常卡死
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # 建议使用稳定主版本号
+        with:
+          fetch-depth: 1
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle' # 启用 setup-java 内置的 gradle 缓存
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:" # 显式定义缓存键
+
+      - name: Install Dependencies
+        run: |
+          flutter pub get
+          # 仅在有 build_runner 需求时运行
+          if grep -q "build_runner" pubspec.yaml; then
+            dart run build_runner build -d
+          fi
+
+      - name: Build Release APK
+        run: |
+          # 预留 core 编译步骤
+          dart setup.dart android --arch universal --out core
+          # 使用 split-per-abi 优化体积，并注入 Secret
+          flutter build apk --release \
+            --target-platform android-arm,android-arm64,android-x64 \
+            --split-per-abi \
+            --dart-define=APP_ENV=prod \
+            --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bettbox-release-${{ github.ref_name }}-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 3 # 稍微延长至3天，方便跨时区测试
+          if-no-files-found: error
