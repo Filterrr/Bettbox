@@ -51,7 +51,7 @@ jobs:
         run: |
           dart setup.dart android --arch universal --out core
           flutter build apk --release \
-            --target-platform android-arm,android-arm64,android-x64,android-universal \
+            --target-platform android-arm,android-arm64,android-x64 \
             --split-per-abi \
             --dart-define=APP_ENV=prod \
             --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
