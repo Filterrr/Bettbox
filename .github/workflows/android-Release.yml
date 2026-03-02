@@ -12,11 +12,11 @@ jobs:
   debug-build:
     name: Build Flutter Android
     runs-on: ubuntu-latest
-    timeout-minutes: 30 # 防止异常卡死
+    timeout-minutes: 30 
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # 建议使用稳定主版本号
+        uses: actions/checkout@v4 
         with:
           fetch-depth: 1
 
@@ -25,7 +25,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle' # 启用 setup-java 内置的 gradle 缓存
+          cache: 'gradle' 
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -38,23 +38,20 @@ jobs:
         with:
           channel: 'stable'
           cache: true
-          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:" # 显式定义缓存键
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:" 
 
       - name: Install Dependencies
         run: |
           flutter pub get
-          # 仅在有 build_runner 需求时运行
           if grep -q "build_runner" pubspec.yaml; then
             dart run build_runner build -d
           fi
 
       - name: Build Release APK
         run: |
-          # 预留 core 编译步骤
           dart setup.dart android --arch universal --out core
-          # 使用 split-per-abi 优化体积，并注入 Secret
           flutter build apk --release \
-            --target-platform android-arm,android-arm64,android-x64 \
+            --target-platform android-arm,android-arm64,android-x64,android-universal \
             --split-per-abi \
             --dart-define=APP_ENV=prod \
             --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
@@ -64,5 +61,5 @@ jobs:
         with:
           name: bettbox-release-${{ github.ref_name }}-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/*.apk
-          retention-days: 3 # 稍微延长至3天，方便跨时区测试
+          retention-days: 1
           if-no-files-found: error
