@@ -7,6 +7,7 @@ import 'package:archive/archive_io.dart';
 import 'package:bett_box/clash/clash.dart';
 import 'package:bett_box/enum/enum.dart';
 import 'package:bett_box/plugins/app.dart';
+import 'package:bett_box/plugins/vpn.dart';
 import 'package:bett_box/providers/providers.dart';
 import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/dialog.dart';
@@ -592,7 +593,6 @@ class AppController {
       system.exit();
     });
     try {
-      // Clean up WakeLock timer
       stopWakelockAutoRecovery();
 
       await savePreferences();
@@ -658,7 +658,10 @@ class AppController {
       if (res != true) {
         return;
       }
-      launchUrl(Uri.parse('https://github.com/$repository/releases/latest'));
+      launchUrl(
+        Uri.parse('https://github.com/$repository/releases/latest'),
+        mode: LaunchMode.externalApplication,
+      );
     } else if (handleError) {
       globalState.showMessage(
         title: appLocalizations.checkUpdate,
@@ -695,7 +698,7 @@ class AppController {
 
   void startWakelockAutoRecovery() {
     _wakelockSyncTimer?.cancel();
-    _wakelockSyncTimer = Timer.periodic(const Duration(seconds: 240), (
+    _wakelockSyncTimer = Timer.periodic(const Duration(seconds: 168), (
       _,
     ) async {
       try {
@@ -709,7 +712,7 @@ class AppController {
 
         if (!actualState) {
           commonPrint.log(
-            'WakeLock was released by system, attempting auto-recovery',
+            'WakeLock attempting auto-recovery',
           );
 
           await WakelockPlus.enable();
@@ -775,16 +778,40 @@ class AppController {
   }
 
   Future<void> _initStatus() async {
-    if (globalState.isStart) {
+    if (system.isAndroid) {
+      await globalState.updateStartTime();
+    } else if (globalState.isStart) {
       await globalState.updateStartTime();
     }
 
-    final (needRecovery, recoveryReason) = await _detectRecoveryReason();
+    final (needRecovery, recoveryReason, isUpgrade) = await _detectRecoveryReason();
+
+    if (system.isAndroid) {
+      try {
+        final hasResidual = await vpn?.checkAndCleanResidualVpn() ?? false;
+        if (hasResidual) {
+          commonPrint.log('Detected and cleaned residual VPN state');
+          final prefs = await preferences.sharedPreferencesCompleter.future;
+          await prefs?.setBool('is_vpn_running', false);
+          await prefs?.setBool('needs_tun_cleanup', false);
+          
+          if (isUpgrade) {
+            await Future.delayed(const Duration(milliseconds: 450));
+          }
+        }
+      } catch (e) {
+        commonPrint.log('Failed to check/clean residual VPN: $e');
+      }
+    }
 
     if (needRecovery) {
       commonPrint.log('Handling Recovery: $recoveryReason');
-      await _performDeepClean();
-      commonPrint.log('Cleaned residual states successfully.');
+      if (isUpgrade) {
+        await clashService?.reStart();
+        await _initCore();
+
+        await Future.delayed(const Duration(milliseconds: 450));
+      }
     }
 
     final shouldStart =
@@ -794,6 +821,10 @@ class AppController {
       try {
         await updateStatus(true);
         if (system.isAndroid && needRecovery) {
+          if (!isUpgrade) {
+            await clashService?.reStart();
+            await _initCore();
+          }
           commonPrint.log('Force applying profile for Android');
           await applyProfile(silence: true);
         }
@@ -803,12 +834,16 @@ class AppController {
         addCheckIpNumDebounce();
       }
     } else {
+      if (needRecovery) {
+        final prefs = await preferences.sharedPreferencesCompleter.future;
+        await prefs?.setBool('is_vpn_running', false);
+      }
       await applyProfile();
       addCheckIpNumDebounce();
     }
   }
 
-  Future<(bool, String)> _detectRecoveryReason() async {
+  Future<(bool, String, bool)> _detectRecoveryReason() async {
     final results = await Future.wait<dynamic>([
       preferences.sharedPreferencesCompleter.future,
       PackageInfo.fromPlatform(),
@@ -828,19 +863,13 @@ class AppController {
       String reason = '';
 
       if (savedApkUpdateTime != 0 && savedApkUpdateTime != apkLastUpdateTime) {
-        commonPrint.log(
-          'Detected by time: $savedApkUpdateTime -> $apkLastUpdateTime',
-        );
         isReinstall = true;
-        reason = 'APK reinstall/upgrade';
+        reason = 'APK Upgrade';
       }
 
       if (lastRunVersion != null && lastRunVersion != currentVersion) {
-        commonPrint.log(
-          'Detected by version: $lastRunVersion -> $currentVersion',
-        );
         isReinstall = true;
-        reason = 'Version change';
+        reason = 'APK Upgrade';
       }
 
       final isVpnRunningFlag = prefs?.getBool('is_vpn_running') ?? false;
@@ -859,7 +888,7 @@ class AppController {
 
       final needRecovery =
           (!globalState.isStart && isReinstall) || isAbnormalExit;
-      return (needRecovery, reason);
+      return (needRecovery, reason, isReinstall);
     }
 
     if (system.isDesktop) {
@@ -889,18 +918,10 @@ class AppController {
         prefs?.setString('last_run_version', currentVersion);
       }
 
-      return (needRecovery, reason);
+      return (needRecovery, reason, false);
     }
 
-    return (false, '');
-  }
-
-  Future<void> _performDeepClean() async {
-    await globalState.handleStop();
-
-    for (int i = 0; i < 10; i++) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
+    return (false, '', false);
   }
 
   void setDelay(Delay delay) {

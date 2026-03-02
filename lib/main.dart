@@ -96,6 +96,10 @@ Future<void> _service(List<String> flags) async {
         await vpn?.stop();
         exit(0);
       },
+      onReconnectIpc: () {
+        commonPrint.log('Service: reconnectIpc requested, re-establishing IPC');
+        _handleMainIpc(clashLibHandler);
+      },
     ),
   );
 
@@ -139,6 +143,11 @@ Future<void> _service(List<String> flags) async {
       if (profileId == null) {
         return;
       }
+
+      if (system.isAndroid) {
+        await vpn?.checkAndCleanResidualVpn();
+      }
+
       final params = await globalState.getSetupParams(pathConfig: clashConfig);
       final res = await clashLibHandler.quickStart(
         InitParams(homeDir: homeDirPath, version: version),
@@ -151,6 +160,13 @@ Future<void> _service(List<String> flags) async {
         exit(0);
       }
       await vpn?.start(clashLibHandler.getAndroidVpnOptions());
+      
+      if (globalState.config.appSetting.openLogs) {
+        await clashLibHandler.invokeAction('{"id": "quickStartLog", "method": "startLog"}');
+      } else {
+        await clashLibHandler.invokeAction('{"id": "quickStopLog", "method": "stopLog"}');
+      }
+      
       clashLibHandler.startListener();
     });
   }
@@ -172,18 +188,26 @@ void _handleMainIpc(ClashLibHandler clashLibHandler) {
   messageReceiverPort.listen((message) {
     sendPort.send(message);
   });
+  // Restart the listener goroutine now that the message port is bound.
+  // In quick start, startListener() was called before attachMessagePort,
+  // so the goroutine had no port and exited. Re-calling it here ensures
+  // log/traffic messages actually flow to the UI Engine.
+  clashLibHandler.startListener();
 }
 
 @immutable
 class _TileListenerWithService with TileListener {
   final Function() _onStart;
   final Function() _onStop;
+  final Function() _onReconnectIpc;
 
   const _TileListenerWithService({
     required Function() onStart,
     required Function() onStop,
+    required Function() onReconnectIpc,
   }) : _onStart = onStart,
-       _onStop = onStop;
+       _onStop = onStop,
+       _onReconnectIpc = onReconnectIpc;
 
   @override
   void onStart() {
@@ -193,6 +217,11 @@ class _TileListenerWithService with TileListener {
   @override
   void onStop() {
     _onStop();
+  }
+
+  @override
+  void onReconnectIpc() {
+    _onReconnectIpc();
   }
 }
 

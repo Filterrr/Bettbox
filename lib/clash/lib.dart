@@ -30,7 +30,6 @@ class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
   }
 
   Future<void> _initService() async {
-    await service?.destroy();
     _registerMainPort(receiverPort.sendPort);
     receiverPort.listen((message) {
       if (message is SendPort) {
@@ -44,7 +43,23 @@ class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
         handleResult(ActionResult.fromJson(json.decode(message)));
       }
     });
-    await service?.init();
+    // Check if Service Engine is already running (e.g. tile quick start).
+    // If so, don't destroy it — just reconnect IPC to preserve listener state.
+    final alreadyRunning = await service?.isServiceEngineRunning() ?? false;
+    if (alreadyRunning) {
+      await service?.reconnectIpc();
+    } else {
+      await service?.destroy();
+      await service?.init();
+      // New Service Engine runs _service() async; wait for IPC establishment
+      final connected = await _canSendCompleter.future
+          .timeout(const Duration(seconds: 2), onTimeout: () => false);
+      if (!connected) {
+        commonPrint.log('ClashLib: IPC not established');
+        _canSendCompleter = Completer();
+        await service?.reconnectIpc();
+      }
+    }
   }
 
   void _registerMainPort(SendPort sendPort) {
