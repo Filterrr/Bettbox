@@ -69,7 +69,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Bettbox-android-apks
-          path: build/app/outputs/flutter-apk/*.apk
+          path: bettbox-android-*.apk
           retention-days: 1
           overwrite: true
 
