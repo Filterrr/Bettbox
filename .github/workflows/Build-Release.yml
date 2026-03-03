@@ -1,4 +1,4 @@
-name: Android Release Build
+name: Release Build
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
       - '.gitignore'
 
 jobs:
-  debug-build:
+  android-build:
     name: Build Flutter Android
     runs-on: ubuntu-latest
     timeout-minutes: 30 
@@ -59,7 +59,56 @@ jobs:
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: bettbox-release-${{ github.ref_name }}-${{ github.run_number }}
+          name: bettbox-android-release-${{ github.ref_name }}-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 1
+          if-no-files-found: error
+
+  windows-build:
+    name: Build Flutter Windows Portable x64
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:" 
+
+      - name: Install Dependencies
+        shell: bash
+        run: |
+          flutter pub get
+          if grep -q "build_runner" pubspec.yaml; then
+            dart run build_runner build -d
+          fi
+
+      - name: Build Release Windows
+        shell: bash
+        run: |
+          dart setup.dart windows --arch x64 --out core
+          
+          flutter build windows --release \
+            --dart-define=APP_ENV=prod \
+            --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
+
+      - name: Upload Release Windows Portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: bettbox-windows-portable-${{ github.ref_name }}-${{ github.run_number }}
+          path: build/windows/x64/runner/Release/*
           retention-days: 1
           if-no-files-found: error
