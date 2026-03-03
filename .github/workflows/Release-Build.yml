@@ -49,7 +49,6 @@ jobs:
 
       - name: Build Release APK
         run: |
-          # Android 继续使用 setup.dart 逻辑，去除签名配置
           dart setup.dart android --arch universal --out core ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
           flutter build apk --release \
             --target-platform android-arm,android-arm64,android-x64 \
@@ -65,58 +64,8 @@ jobs:
           retention-days: 1
           overwrite: true
 
-  build-windows-portable:
-    name: Build Windows Portable x64
-    runs-on: windows-2022
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 1
-
-      - name: Setup Golang
-        uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
-          cache-dependency-path: core/go.sum
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
-          cache-key: flutter-windows-portable-amd64-${{ hashFiles('**/pubspec.lock') }}
-
-      - name: Install Dependencies
-        shell: bash
-        run: |
-          flutter pub get
-          dart run build_runner build -d
-
-      - name: Build Release Windows
-        shell: bash
-        run: |
-          dart setup.dart windows --arch amd64 --out app ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
-          flutter build windows --release \
-            --dart-define=APP_ENV=prod \
-            --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
-
-      - name: Package Portable ZIP
-        shell: pwsh
-        run: |
-          # 打包 Windows 构建产物
-          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "Bettbox-Windows-Portable-x64.zip"
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Bettbox-windows-portable-x64
-          path: Bettbox-Windows-Portable-x64.zip
-          retention-days: 1
-          overwrite: true
-
   build:
+    name: Build ${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -185,10 +134,19 @@ jobs:
       - name: Build Bettbox
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        shell: bash
         run: |
           flutter pub get
           dart run build_runner build -d
           dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.compatible == true && '--compatible' || '' }}
+          
+          if [ "${{ matrix.platform }}" == "windows" ]; then
+            echo "Packaging Windows Portable..."
+            cd dist
+            powershell.exe -Command "Compress-Archive -Path '*' -DestinationPath '../Bettbox-Windows-Portable-${{ matrix.arch }}.zip'"
+            cd ..
+            mv Bettbox-Windows-Portable-${{ matrix.arch }}.zip ./dist/
+          fi
       
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -200,7 +158,7 @@ jobs:
 
   upload:
     permissions: write-all
-    needs: [ build, build-android, build-windows-portable ]
+    needs: [ build, build-android ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
