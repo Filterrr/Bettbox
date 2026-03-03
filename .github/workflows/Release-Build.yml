@@ -55,12 +55,15 @@ jobs:
             --split-per-abi \
             --dart-define=APP_ENV=prod \
             --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
-      - name: Rename APK with timestamp
+            
+      - name: Rename APKs with timestamp
         id: apk
         run: |
           TIMESTAMP=$(date +'%Y%m%d%H%M%S')
-          mv build/app/outputs/flutter-apk/app.apk "bettbox-android-${TIMESTAMP}.apk"
-          echo "name=bettbox-android-${TIMESTAMP}" >> $GITHUB_OUTPUT
+          for file in build/app/outputs/flutter-apk/*-release.apk; do
+            new_name="bettbox-android-${TIMESTAMP}-$(basename "$file")"
+            mv "$file" "$new_name"
+          done
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
