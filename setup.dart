@@ -70,19 +70,24 @@ enum Arch { amd64, arm64, arm }
 class BuildItem {
   Target target;
   Arch? arch;
-  String? archName; // 此字段对于确定输出路径至关重要
+  String? archName;
 
   BuildItem({required this.target, this.arch, this.archName});
+
+  @override
+  String toString() {
+    return 'BuildLibItem{target: $target, arch: $arch, archName: $archName}';
+  }
 }
 
 class Build {
   static List<BuildItem> get buildItems => [
-    BuildItem(target: Target.macos, arch: Arch.arm64, archName: 'arm64'),
-    BuildItem(target: Target.macos, arch: Arch.amd64, archName: 'x64'),
-    BuildItem(target: Target.linux, arch: Arch.arm64, archName: 'arm64'),
-    BuildItem(target: Target.linux, arch: Arch.amd64, archName: 'x64'),
-    BuildItem(target: Target.windows, arch: Arch.amd64, archName: 'x64'),
-    BuildItem(target: Target.windows, arch: Arch.arm64, archName: 'arm64'),
+    BuildItem(target: Target.macos, arch: Arch.arm64),
+    BuildItem(target: Target.macos, arch: Arch.amd64),
+    BuildItem(target: Target.linux, arch: Arch.arm64),
+    BuildItem(target: Target.linux, arch: Arch.amd64),
+    BuildItem(target: Target.windows, arch: Arch.amd64),
+    BuildItem(target: Target.windows, arch: Arch.arm64),
     BuildItem(target: Target.android, arch: Arch.arm, archName: 'armeabi-v7a'),
     BuildItem(target: Target.android, arch: Arch.arm64, archName: 'arm64-v8a'),
     BuildItem(target: Target.android, arch: Arch.amd64, archName: 'x86_64'),
@@ -165,29 +170,28 @@ class Build {
     return sha256.convert(await stream.reduce((a, b) => a + b)).toString();
   }
 
-static Future<List<String>> buildCore({
+  static Future<List<String>> buildCore({
     required Mode mode,
     required Target target,
     Arch? arch,
     bool compatible = false,
   }) async {
     final isLib = mode == Mode.lib;
+
     final items = buildItems.where((element) {
-      return element.target == target && (arch == null ? true : element.arch == arch);
+      return element.target == target &&
+          (arch == null ? true : element.arch == arch);
     }).toList();
 
     final List<String> corePaths = [];
 
     for (final item in items) {
-      // 确保 archName 不为 null，否则 join 会产生错误的路径
-      final effectiveArchName = item.archName ?? item.arch?.name ?? 'unknown';
-      final outFileDir = join(outDir, item.target.name, effectiveArchName);
+      final outFileDir = join(outDir, item.target.name, item.archName);
 
-      final dir = Directory(outFileDir);
-      if (dir.existsSync()) {
-        dir.deleteSync(recursive: true);
+      final file = File(outFileDir);
+      if (file.existsSync()) {
+        file.deleteSync(recursive: true);
       }
-      dir.createSync(recursive: true);
 
       final fileName = isLib
           ? '$libName${item.target.dynamicLibExtensionName}'
@@ -233,9 +237,9 @@ static Future<List<String>> buildCore({
         workingDirectory: _coreDir,
       );
     }
+
     return corePaths;
   }
-}
 
   static Future<void> buildHelper(Target target, String token) async {
     await exec(
