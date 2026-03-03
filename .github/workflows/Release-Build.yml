@@ -97,8 +97,7 @@ jobs:
       - name: Build Release Windows
         shell: bash
         run: |
-          # 修复：将 --arch x64 修改为 --arch amd64 以匹配 setup.dart 中的 Arch 枚举定义
-          dart setup.dart windows --arch amd64 --out core ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
+          dart setup.dart windows --arch amd64 --out app ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
           flutter build windows --release \
             --dart-define=APP_ENV=prod \
             --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
