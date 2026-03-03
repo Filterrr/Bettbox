@@ -49,6 +49,7 @@ jobs:
 
       - name: Build Release APK
         run: |
+          # Android 继续使用 setup.dart 逻辑，去除签名配置
           dart setup.dart android --arch universal --out core ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
           flutter build apk --release \
             --target-platform android-arm,android-arm64,android-x64 \
@@ -65,7 +66,6 @@ jobs:
           overwrite: true
 
   build:
-    name: Build ${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -134,19 +134,10 @@ jobs:
       - name: Build Bettbox
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-        shell: bash
         run: |
           flutter pub get
           dart run build_runner build -d
           dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.compatible == true && '--compatible' || '' }}
-          
-          if [ "${{ matrix.platform }}" == "windows" ]; then
-            echo "Packaging Windows Portable..."
-            cd dist
-            powershell.exe -Command "Compress-Archive -Path '*' -DestinationPath '../Bettbox-Windows-Portable-${{ matrix.arch }}.zip'"
-            cd ..
-            mv Bettbox-Windows-Portable-${{ matrix.arch }}.zip ./dist/
-          fi
       
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
