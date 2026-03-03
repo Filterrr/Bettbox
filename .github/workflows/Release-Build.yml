@@ -49,13 +49,18 @@ jobs:
 
       - name: Build Release APK
         run: |
-          # Android 继续使用 setup.dart 逻辑，去除签名配置
           dart setup.dart android --arch universal --out core ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
           flutter build apk --release \
             --target-platform android-arm,android-arm64,android-x64 \
             --split-per-abi \
             --dart-define=APP_ENV=prod \
             --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
+      - name: Rename APK with timestamp
+        id: apk
+        run: |
+          TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+          mv build/app/outputs/flutter-apk/app.apk "bettbox-android-${TIMESTAMP}.apk"
+          echo "name=bettbox-android-${TIMESTAMP}" >> $GITHUB_OUTPUT
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
