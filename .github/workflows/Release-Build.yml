@@ -8,6 +8,15 @@ on:
       - '**.md'
       - '.gitignore'
 
+# 1. 并发控制：自动取消同一分支上尚未完成的旧构建，避免资源浪费
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 2. 安全权限：遵循最小权限原则，仅声明读取代码的权限
+permissions:
+  contents: read
+
 env:
   IS_STABLE: ${{ !contains(github.ref, '-') }}
   
@@ -61,7 +70,7 @@ jobs:
         with:
           name: Bettbox-android-apks
           path: build/app/outputs/flutter-apk/*.apk
-          retention-days: 1
+          retention-days: 3  # 优化：1 天可能过短，不利于周末排查问题，建议调整为 3 天或更高
           overwrite: true
 
   build:
@@ -69,33 +78,58 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # 3. 矩阵结构优化：将环境差异直接提取为矩阵变量，消除下方步骤中复杂的内联逻辑
         include:
           - platform: windows
             os: windows-2022
             arch: amd64
+            go_version: '1.25.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
           - platform: windows
             os: windows-2022
             arch: arm64
+            go_version: '1.25.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
           - platform: macos
             os: macos-15
             arch: arm64
+            go_version: '1.25.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
           - platform: macos
             os: macos-15
             arch: amd64
+            go_version: '1.25.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
           - platform: linux
             os: ubuntu-24.04
             arch: amd64
+            go_version: '1.25.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
           - platform: linux
             os: ubuntu-24.04-arm
             arch: arm64
+            go_version: '1.25.x'
+            flutter_channel: 'master'
+            flutter_version: ''  # 允许为空
           - platform: windows
             os: windows-2022
             arch: amd64
             compatible: true
+            go_version: '1.22.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
           - platform: macos
             os: macos-15
             arch: amd64
             compatible: true
+            go_version: '1.22.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
 
     steps:
       - name: Checkout
@@ -119,16 +153,16 @@ jobs:
       - name: Setup Golang
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.compatible == true && '1.22.x' || '1.25.x' }}
+          go-version: ${{ matrix.go_version }}
           cache-dependency-path: core/go.sum
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: ${{ matrix.os == 'ubuntu-24.04-arm' && 'master' || 'stable' }}
+          channel: ${{ matrix.flutter_channel }}
           cache: true
           cache-key: flutter-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('**/pubspec.lock') }}
-          flutter-version: ${{ matrix.os == 'ubuntu-24.04-arm' && '' || '3.38.10' }}
+          flutter-version: ${{ matrix.flutter_version || '' }}
 
       - name: Build Bettbox
         env:
