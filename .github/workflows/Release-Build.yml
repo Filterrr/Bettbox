@@ -8,12 +8,10 @@ on:
       - '**.md'
       - '.gitignore'
 
-# 1. 并发控制：自动取消同一分支上尚未完成的旧构建，避免资源浪费
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# 2. 安全权限：遵循最小权限原则，仅声明读取代码的权限
 permissions:
   contents: read
 
@@ -21,65 +19,22 @@ env:
   IS_STABLE: ${{ !contains(github.ref, '-') }}
   
 jobs:
-  build-android:
-    name: Build Android APKs (Unsigned)
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 1
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: 'gradle'
-
-      - name: Setup Golang
-        uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
-          cache-dependency-path: core/go.sum
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
-          cache-key: flutter-android-universal-${{ hashFiles('**/pubspec.lock') }}
-
-      - name: Install Dependencies
-        run: |
-          flutter pub get
-          dart run build_runner build -d
-
-      - name: Build Release APK
-        run: |
-          dart setup.dart android --arch universal --out core ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
-          flutter build apk --release \
-            --target-platform android-arm,android-arm64,android-x64 \
-            --split-per-abi \
-            --dart-define=APP_ENV=prod \
-            --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
-  
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Bettbox-android-apks
-          path: build/app/outputs/flutter-apk/*.apk
-          retention-days: 3  # 优化：1 天可能过短，不利于周末排查问题，建议调整为 3 天或更高
-          overwrite: true
-
   build:
+    name: Build ${{ matrix.platform }}-${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # 3. 矩阵结构优化：将环境差异直接提取为矩阵变量，消除下方步骤中复杂的内联逻辑
         include:
+          # --- Android 平台合并 ---
+          - platform: android
+            os: ubuntu-24.04
+            arch: universal
+            is_android: true
+            go_version: 'stable'
+            flutter_channel: 'stable'
+
+          # --- Windows 平台 ---
           - platform: windows
             os: windows-2022
             arch: amd64
@@ -92,6 +47,15 @@ jobs:
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
+          - platform: windows
+            os: windows-2022
+            arch: amd64
+            compatible: true
+            go_version: '1.22.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
+
+          # --- macOS 平台 ---
           - platform: macos
             os: macos-15
             arch: arm64
@@ -104,6 +68,15 @@ jobs:
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
+          - platform: macos
+            os: macos-15
+            arch: amd64
+            compatible: true
+            go_version: '1.22.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
+
+          # --- Linux 平台 ---
           - platform: linux
             os: ubuntu-24.04
             arch: amd64
@@ -115,21 +88,6 @@ jobs:
             arch: arm64
             go_version: '1.25.x'
             flutter_channel: 'master'
-            flutter_version: ''  # 允许为空
-          - platform: windows
-            os: windows-2022
-            arch: amd64
-            compatible: true
-            go_version: '1.22.x'
-            flutter_channel: 'stable'
-            flutter_version: '3.38.10'
-          - platform: macos
-            os: macos-15
-            arch: amd64
-            compatible: true
-            go_version: '1.22.x'
-            flutter_channel: 'stable'
-            flutter_version: '3.38.10'
 
     steps:
       - name: Checkout
@@ -138,13 +96,24 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
+      # Android 特有：配置 Java 环境
+      - name: Setup Java 17
+        if: matrix.is_android == true
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: 'gradle'
+
+      # Windows 特有：配置 Rust 环境
       - name: Setup Rust
         if: matrix.platform == 'windows'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.arch == 'arm64' && 'aarch64-pc-windows-msvc' || 'x86_64-pc-windows-msvc' }}
 
-      - name: Install Dependencies
+      # Linux 特有：安装依赖
+      - name: Install Linux Dependencies
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
@@ -164,18 +133,38 @@ jobs:
           cache-key: flutter-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('**/pubspec.lock') }}
           flutter-version: ${{ matrix.flutter_version || '' }}
 
-      - name: Build Bettbox
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      - name: Prepare Dependencies
         run: |
           flutter pub get
           dart run build_runner build -d
+
+      # --- 核心构建逻辑分流 ---
+      
+      # 情况 A: Android 构建
+      - name: Build Android APK
+        if: matrix.is_android == true
+        run: |
+          dart setup.dart android --arch universal --out core ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
+          flutter build apk --release \
+            --target-platform android-arm,android-arm64,android-x64 \
+            --split-per-abi \
+            --dart-define=APP_ENV=prod \
+            --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
+
+      # 情况 B: 桌面端构建 (Windows/macOS/Linux)
+      - name: Build Desktop Platform
+        if: matrix.is_android != true
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
           dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.compatible == true && '--compatible' || '' }}
       
+      # --- 产物上传 ---
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}
-          path: ./dist
+          path: ${{ matrix.is_android == true && 'build/app/outputs/flutter-apk/*.apk' || './dist' }}
           compression-level: 9
+          retention-days: 3
           overwrite: true
