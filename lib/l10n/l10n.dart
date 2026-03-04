@@ -4806,9 +4806,24 @@ class AppLocalizations {
 
   /// `Restart`
   String get restart {
+    return Intl.message('Restart', name: 'restart', desc: '', args: []);
+  }
+
+  /// `Restart Core`
+  String get restartCoreTitle {
     return Intl.message(
-      'Restart',
-      name: 'restart',
+      'Restart Core',
+      name: 'restartCoreTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Manually restart the core?`
+  String get restartCoreDesc {
+    return Intl.message(
+      'Manually restart the core?',
+      name: 'restartCoreDesc',
       desc: '',
       args: [],
     );

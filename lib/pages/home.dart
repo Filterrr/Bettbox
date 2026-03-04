@@ -225,6 +225,7 @@ class _HomeBackScopeState extends ConsumerState<HomeBackScope> {
         return widget.child;
       }
 
+      // Android < 31（Android 11 及以下）：使用 CommonPopScope 拦截
       if (sdkInt! < 31) {
         return CommonPopScope(
           onPop: () async {
@@ -238,6 +239,10 @@ class _HomeBackScopeState extends ConsumerState<HomeBackScope> {
           },
           child: widget.child,
         );
+      }
+
+      if (sdkInt! >= 33) {
+        return widget.child;
       }
 
       final backBlock = ref.watch(backBlockProvider);

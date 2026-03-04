@@ -26,7 +26,7 @@ import 'common/flclash_database_extractor.dart';
 import 'models/models.dart';
 import 'views/profiles/override_profile.dart';
 
-import 'package:package_info_plus/package_info_plus.dart';
+
 
 class AppController {
   int? lastProfileModified;
@@ -634,7 +634,7 @@ class AppController {
     Map<String, dynamic>? data,
     bool handleError = false,
   }) async {
-    if (globalState.isPre) {
+    if (globalState.isPre && !handleError) {
       return;
     }
     if (data != null) {
@@ -786,7 +786,7 @@ class AppController {
 
     final (needRecovery, recoveryReason, isUpgrade) = await _detectRecoveryReason();
 
-    if (system.isAndroid) {
+    if (system.isAndroid && needRecovery) {
       try {
         final hasResidual = await vpn?.checkAndCleanResidualVpn() ?? false;
         if (hasResidual) {
@@ -794,24 +794,19 @@ class AppController {
           final prefs = await preferences.sharedPreferencesCompleter.future;
           await prefs?.setBool('is_vpn_running', false);
           await prefs?.setBool('needs_tun_cleanup', false);
-          
-          if (isUpgrade) {
-            await Future.delayed(const Duration(milliseconds: 450));
-          }
         }
       } catch (e) {
         commonPrint.log('Failed to check/clean residual VPN: $e');
       }
-    }
 
-    if (needRecovery) {
       commonPrint.log('Handling Recovery: $recoveryReason');
-      if (isUpgrade) {
-        await clashService?.reStart();
-        await _initCore();
-
-        await Future.delayed(const Duration(milliseconds: 450));
-      }
+      await Future.delayed(const Duration(milliseconds: 888));
+      await applyProfile(silence: true);
+      await clashService?.reStart();
+      await _initCore();
+      await Future.delayed(const Duration(milliseconds: 888));
+      commonPrint.log('Force applying profile for Android');
+      await applyProfile(silence: true);
     }
 
     final shouldStart =
@@ -820,14 +815,6 @@ class AppController {
     if (shouldStart) {
       try {
         await updateStatus(true);
-        if (system.isAndroid && needRecovery) {
-          if (!isUpgrade) {
-            await clashService?.reStart();
-            await _initCore();
-          }
-          commonPrint.log('Force applying profile for Android');
-          await applyProfile(silence: true);
-        }
       } catch (e) {
         commonPrint.log('Auto start failed: $e');
         await applyProfile();
@@ -846,16 +833,11 @@ class AppController {
   Future<(bool, String, bool)> _detectRecoveryReason() async {
     final results = await Future.wait<dynamic>([
       preferences.sharedPreferencesCompleter.future,
-      PackageInfo.fromPlatform(),
       system.isAndroid ? app.getSelfLastUpdateTime() : Future.value(0),
     ]);
 
     final prefs = results[0];
-    final packageInfo = results[1] as PackageInfo;
-    final apkLastUpdateTime = results[2] as int;
-
-    final currentVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
-    final lastRunVersion = prefs?.getString('last_run_version');
+    final apkLastUpdateTime = results[1] as int;
 
     if (system.isAndroid) {
       final savedApkUpdateTime = prefs?.getInt('apk_last_update_time') ?? 0;
@@ -867,23 +849,15 @@ class AppController {
         reason = 'APK Upgrade';
       }
 
-      if (lastRunVersion != null && lastRunVersion != currentVersion) {
-        isReinstall = true;
-        reason = 'APK Upgrade';
-      }
-
       final isVpnRunningFlag = prefs?.getBool('is_vpn_running') ?? false;
-      final isAbnormalExit = !globalState.isStart && isVpnRunningFlag;
-      if (isAbnormalExit && !isReinstall) {
+      final isAbnormalExit = !globalState.isStart && isVpnRunningFlag && !isReinstall;
+      if (isAbnormalExit) {
         commonPrint.log('Abnormal exit detected');
         reason = 'Abnormal exit';
       }
 
       if (savedApkUpdateTime != apkLastUpdateTime) {
         prefs?.setInt('apk_last_update_time', apkLastUpdateTime);
-      }
-      if (lastRunVersion != currentVersion) {
-        prefs?.setString('last_run_version', currentVersion);
       }
 
       final needRecovery =
@@ -895,27 +869,12 @@ class AppController {
       bool needRecovery = false;
       String reason = '';
 
-      // Skip recovery if core is already running
-      if (!globalState.isStart &&
-          lastRunVersion != null &&
-          lastRunVersion != currentVersion) {
-        commonPrint.log(
-          'Desktop version change detected: $lastRunVersion -> $currentVersion',
-        );
-        needRecovery = true;
-        reason = 'Version update';
-      }
-
       final wasTunRunning = prefs?.getBool('is_tun_running') ?? false;
       final isTunConflict = !globalState.isStart && wasTunRunning;
       if (isTunConflict) {
         commonPrint.log('Desktop TUN resource conflict detected');
         needRecovery = true;
         reason = 'TUN resource conflict';
-      }
-
-      if (lastRunVersion != currentVersion) {
-        prefs?.setString('last_run_version', currentVersion);
       }
 
       return (needRecovery, reason, false);
