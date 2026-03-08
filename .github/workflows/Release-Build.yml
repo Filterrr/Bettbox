@@ -20,7 +20,7 @@ env:
   
 jobs:
   build:
-    name: Build ${{ matrix.platform }}-${{ matrix.arch }}
+    name: Build ${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.portable == true && '-portable' || '' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -52,6 +52,14 @@ jobs:
             arch: amd64
             compatible: true
             go_version: '1.22.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
+          # --- Windows 便携版 ---
+          - platform: windows
+            os: windows-2022
+            arch: amd64
+            portable: true
+            go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
 
@@ -157,13 +165,13 @@ jobs:
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.compatible == true && '--compatible' || '' }}
+          dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.compatible == true && '--compatible' || '' }} ${{ matrix.portable == true && '--portable' || '' }}
       
       # --- 产物上传 ---
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}
+          name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}${{ matrix.portable == true && '-portable' || '' }}
           path: ${{ matrix.is_android == true && 'build/app/outputs/flutter-apk/*.apk' || './dist' }}
           compression-level: 9
           retention-days: 3
