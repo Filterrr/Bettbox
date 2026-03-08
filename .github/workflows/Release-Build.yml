@@ -18,6 +18,10 @@ permissions:
 env:
   IS_STABLE: ${{ !contains(github.ref, '-') }}
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     name: Build ${{ matrix.platform }}-${{ matrix.arch }}
@@ -28,7 +32,7 @@ jobs:
       matrix:
         include:
 
-          # ---------- Android ----------
+          # -------- Android --------
           - platform: android
             os: ubuntu-24.04
             arch: universal
@@ -36,7 +40,7 @@ jobs:
             go_version: 'stable'
             flutter_channel: 'stable'
 
-          # ---------- Windows ----------
+          # -------- Windows --------
           - platform: windows
             os: windows-2022
             arch: amd64
@@ -59,7 +63,7 @@ jobs:
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
 
-          # ---------- macOS ----------
+          # -------- macOS --------
           - platform: macos
             os: macos-15
             arch: arm64
@@ -82,7 +86,7 @@ jobs:
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
 
-          # ---------- Linux ----------
+          # -------- Linux --------
           - platform: linux
             os: ubuntu-24.04
             arch: amd64
@@ -106,7 +110,7 @@ jobs:
           fetch-depth: 1
 
       # ---------- Android Java ----------
-      - name: Setup Java 17
+      - name: Setup Java
         if: matrix.is_android == true
         uses: actions/setup-java@v4
         with:
@@ -133,7 +137,7 @@ jobs:
             rpm
 
       # ---------- Go ----------
-      - name: Setup Golang
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go_version }}
@@ -161,10 +165,7 @@ jobs:
       - name: Build Android APK
         if: matrix.is_android == true
         run: |
-          dart setup.dart android \
-            --arch universal \
-            --out core \
-            ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
+          dart setup.dart android --arch universal --out core $([[ "${{ env.IS_STABLE }}" == "true" ]] && echo "--env stable")
 
           flutter build apk --release \
             --target-platform android-arm,android-arm64,android-x64 \
@@ -181,36 +182,28 @@ jobs:
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          dart setup.dart ${{ matrix.platform }} \
-            --arch ${{ matrix.arch }} \
-            ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} \
-            ${{ matrix.compatible == true && '--compatible' || '' }}
+          dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} \
+          $([[ "${{ env.IS_STABLE }}" == "true" ]] && echo "--env stable") \
+          $([[ "${{ matrix.compatible }}" == "true" ]] && echo "--compatible")
 
       # ==================================================
-      # Windows Portable Package
+      # Windows Portable
       # ==================================================
 
       - name: Package Windows Portable
         if: matrix.platform == 'windows'
-        shell: powershell
         run: |
+          mkdir portable
+          cp -r dist/* portable/
 
-          Write-Host "Creating Portable Package..."
+          zip_name="Bettbox-windows-${{ matrix.arch }}-portable.zip"
 
-          New-Item -ItemType Directory -Force -Path portable
+          cd portable
+          zip -r ../$zip_name .
+          cd ..
 
-          Copy-Item dist\* portable\ -Recurse -Force
-
-          $zipName = "Bettbox-windows-${{ matrix.arch }}-portable.zip"
-
-          Compress-Archive `
-            -Path portable\* `
-            -DestinationPath $zipName `
-            -CompressionLevel Optimal
-
-          New-Item -ItemType Directory -Force -Path portable_out
-
-          Move-Item $zipName portable_out\
+          mkdir -p portable_out
+          mv $zip_name portable_out/
 
       # ==================================================
       # Upload Artifacts
@@ -221,7 +214,7 @@ jobs:
         with:
           name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}
           path: |
-            ${{ matrix.is_android == true && 'build/app/outputs/flutter-apk/*.apk' || './dist' }}
+            ${{ matrix.is_android == true && 'build/app/outputs/flutter-apk/*.apk' || 'dist' }}
             portable_out/*.zip
           compression-level: 9
           retention-days: 3
