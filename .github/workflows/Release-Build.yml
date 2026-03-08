@@ -17,19 +17,16 @@ permissions:
 
 env:
   IS_STABLE: ${{ !contains(github.ref, '-') }}
-
+  
 jobs:
-
   build:
     name: Build ${{ matrix.platform }}-${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
-
     strategy:
       fail-fast: false
       matrix:
         include:
-
-          # -------- Android --------
+          # --- Android 平台合并 ---
           - platform: android
             os: ubuntu-24.04
             arch: universal
@@ -37,21 +34,19 @@ jobs:
             go_version: 'stable'
             flutter_channel: 'stable'
 
-          # -------- Windows --------
+          # --- Windows 平台 ---
           - platform: windows
             os: windows-2022
             arch: amd64
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
-
           - platform: windows
             os: windows-2022
             arch: arm64
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
-
           - platform: windows
             os: windows-2022
             arch: amd64
@@ -60,29 +55,34 @@ jobs:
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
 
-          # -------- macOS --------
+          # --- macOS 平台 ---
           - platform: macos
             os: macos-15
             arch: arm64
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
-
           - platform: macos
             os: macos-15
             arch: amd64
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
+          - platform: macos
+            os: macos-15
+            arch: amd64
+            compatible: true
+            go_version: '1.22.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
 
-          # -------- Linux --------
+          # --- Linux 平台 ---
           - platform: linux
             os: ubuntu-24.04
             arch: amd64
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
-
           - platform: linux
             os: ubuntu-24.04-arm
             arch: arm64
@@ -90,127 +90,81 @@ jobs:
             flutter_channel: 'master'
 
     steps:
-
-      # Checkout
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 1
 
-      # Android Java
-      - name: Setup Java
+      # Android 特有：配置 Java 环境
+      - name: Setup Java 17
         if: matrix.is_android == true
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
+          cache: 'gradle'
 
-      # Windows Rust
+      # Windows 特有：配置 Rust 环境
       - name: Setup Rust
         if: matrix.platform == 'windows'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.arch == 'arm64' && 'aarch64-pc-windows-msvc' || 'x86_64-pc-windows-msvc' }}
 
-      # Linux dependencies
+      # Linux 特有：安装依赖
       - name: Install Linux Dependencies
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libcurl4-openssl-dev \
-            ninja-build \
-            libgtk-3-dev \
-            rpm
+          sudo apt-get install -y libcurl4-openssl-dev ninja-build libgtk-3-dev rpm
 
-      # Go
-      - name: Setup Go
+      - name: Setup Golang
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go_version }}
           cache-dependency-path: core/go.sum
 
-      # Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ matrix.flutter_channel }}
-          flutter-version: ${{ matrix.flutter_version || '' }}
           cache: true
+          cache-key: flutter-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('**/pubspec.lock') }}
+          flutter-version: ${{ matrix.flutter_version || '' }}
 
-      # Prepare
       - name: Prepare Dependencies
         run: |
           flutter pub get
           dart run build_runner build -d
-        shell: bash
 
-      # =================================================
-      # Android
-      # =================================================
-
+      # --- 核心构建逻辑分流 ---
+      
+      # 情况 A: Android 构建
       - name: Build Android APK
         if: matrix.is_android == true
-        shell: bash
         run: |
-          dart setup.dart android --arch universal --out core
-
+          dart setup.dart android --arch universal --out core ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
           flutter build apk --release \
             --target-platform android-arm,android-arm64,android-x64 \
             --split-per-abi \
             --dart-define=APP_ENV=prod \
             --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
 
-      # =================================================
-      # Desktop Build
-      # =================================================
-
+      # 情况 B: 桌面端构建 (Windows/macOS/Linux)
       - name: Build Desktop Platform
         if: matrix.is_android != true
-        shell: bash
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }}
-
-      # =================================================
-      # Windows Portable
-      # =================================================
-
-      - name: Package Windows Portable
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        run: |
-          Write-Host "Creating Portable Package"
-
-          New-Item -ItemType Directory -Force -Path portable
-
-          Copy-Item dist\* portable\ -Recurse -Force
-
-          $zipName="Bettbox-windows-${{ matrix.arch }}-portable.zip"
-
-          Compress-Archive `
-            -Path portable\* `
-            -DestinationPath $zipName `
-            -CompressionLevel Optimal
-
-          New-Item -ItemType Directory -Force -Path portable_out
-
-          Move-Item $zipName portable_out\
-
-      # =================================================
-      # Upload
-      # =================================================
-
+          dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.compatible == true && '--compatible' || '' }}
+      
+      # --- 产物上传 ---
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            dist/**
-            portable_out/*.zip
-            build/app/outputs/flutter-apk/*.apk
+          name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}
+          path: ${{ matrix.is_android == true && 'build/app/outputs/flutter-apk/*.apk' || './dist' }}
           compression-level: 9
           retention-days: 3
+          overwrite: true
