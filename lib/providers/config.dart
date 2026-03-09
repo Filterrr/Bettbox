@@ -196,6 +196,19 @@ class OverrideDns extends _$OverrideDns with AutoDisposeNotifierMixin {
 }
 
 @riverpod
+class OverrideTestUrl extends _$OverrideTestUrl with AutoDisposeNotifierMixin {
+  @override
+  bool build() {
+    return globalState.config.overrideTestUrl;
+  }
+
+  @override
+  onUpdate(value) {
+    globalState.config = globalState.config.copyWith(overrideTestUrl: value);
+  }
+}
+
+@riverpod
 class OverrideNtp extends _$OverrideNtp with AutoDisposeNotifierMixin {
   @override
   bool build() {
@@ -321,6 +334,15 @@ class ScriptState extends _$ScriptState with AutoDisposeNotifierMixin {
   bool isExits(String label) {
     return state.scripts.indexWhere((item) => item.label == label) != -1;
   }
+
+  Future<void> syncScript(String id) async {
+    final script = state.scripts.firstWhere((item) => item.id == id);
+    final url = script.url;
+    if (url == null || url.isEmpty) return;
+    final res = await request.getTextResponseForUrl(url);
+    final updated = script.copyWith(content: res.data);
+    setScript(updated);
+  }
 }
 
 @riverpod
@@ -359,3 +381,22 @@ class WindowLocked extends _$WindowLocked with AutoDisposeNotifierMixin {
     );
   }
 }
+
+@riverpod
+class NodeExcludeFilter extends _$NodeExcludeFilter
+    with AutoDisposeNotifierMixin {
+  @override
+  String build() {
+    return globalState.config.nodeExcludeFilter;
+  }
+
+  @override
+  onUpdate(value) {
+    globalState.config = globalState.config.copyWith(nodeExcludeFilter: value);
+  }
+
+  void updateState(String Function(String state) builder) {
+    state = builder(state);
+  }
+}
+

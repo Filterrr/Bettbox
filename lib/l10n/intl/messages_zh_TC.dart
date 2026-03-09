@@ -295,6 +295,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "是否進行強制內核垃圾回收？實驗性功能，請謹慎使用",
     ),
     "forceGCTitle": MessageLookupByLibrary.simpleMessage("強制垃圾回收"),
+    "formatError": MessageLookupByLibrary.simpleMessage("請檢查格式是否正確"),
     "fourColumns": MessageLookupByLibrary.simpleMessage("四列"),
     "fruitSaladScheme": MessageLookupByLibrary.simpleMessage("果繽紛"),
     "general": MessageLookupByLibrary.simpleMessage("一般"),
@@ -315,6 +316,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "使用最佳化的 HarmonyOS Sans",
     ),
     "hasCacheChange": MessageLookupByLibrary.simpleMessage("是否快取修改"),
+    "healthCheckTimeout": MessageLookupByLibrary.simpleMessage("超時時間"),
+    "healthCheckTimeoutDesc": MessageLookupByLibrary.simpleMessage(
+      "節點健康檢查超時時間",
+    ),
     "host": MessageLookupByLibrary.simpleMessage("主機"),
     "hostsDesc": MessageLookupByLibrary.simpleMessage("附加目前配置 Hosts"),
     "hotkeyConflict": MessageLookupByLibrary.simpleMessage("快捷鍵衝突"),
@@ -421,6 +426,11 @@ class MessageLookup extends MessageLookupByLibrary {
     "noProxyDesc": MessageLookupByLibrary.simpleMessage("請建立配置或新增有效的設定檔"),
     "noResolve": MessageLookupByLibrary.simpleMessage("不解析 IP"),
     "noStatusAvailable": MessageLookupByLibrary.simpleMessage("未獲取到狀態"),
+    "nodeExclusion": MessageLookupByLibrary.simpleMessage("節點排除"),
+    "nodeExclusionDesc": MessageLookupByLibrary.simpleMessage("排除所有匹配到的節點"),
+    "nodeExclusionPlaceholder": MessageLookupByLibrary.simpleMessage(
+      "HK|香港|🇭🇰",
+    ),
     "none": MessageLookupByLibrary.simpleMessage("無"),
     "notRecommended": MessageLookupByLibrary.simpleMessage("不推薦"),
     "notSelectedTip": MessageLookupByLibrary.simpleMessage("目前的代理群組無法選取"),
@@ -476,6 +486,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "overrideSnifferDesc": MessageLookupByLibrary.simpleMessage(
       "開啟後將覆蓋配置中的 Sniffer 選項",
     ),
+    "overrideTestUrl": MessageLookupByLibrary.simpleMessage("覆蓋配置"),
     "overrideTunnel": MessageLookupByLibrary.simpleMessage("覆寫 Tunnel"),
     "overrideTunnelDesc": MessageLookupByLibrary.simpleMessage(
       "開啟後將覆蓋配置中的 Tunnel 選項",
@@ -590,6 +601,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "resourcesDesc": MessageLookupByLibrary.simpleMessage("外部資源相關資訊"),
     "respectRules": MessageLookupByLibrary.simpleMessage("遵守規則"),
     "respectRulesDesc": MessageLookupByLibrary.simpleMessage("DNS 連線跟隨 Rules"),
+    "restart": MessageLookupByLibrary.simpleMessage("重啟"),
     "restartCoreDesc": MessageLookupByLibrary.simpleMessage("是否手動重啟內核？"),
     "restartCoreTitle": MessageLookupByLibrary.simpleMessage("重啟內核"),
     "restartTip": MessageLookupByLibrary.simpleMessage("重啟APP後改變生效"),
@@ -753,7 +765,6 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "vpnTip": MessageLookupByLibrary.simpleMessage("重啟VPN後改變生效"),
     "wakelock": MessageLookupByLibrary.simpleMessage("亮螢幕鎖"),
-    "restart": MessageLookupByLibrary.simpleMessage("重啟"),
     "wakelockDescription": MessageLookupByLibrary.simpleMessage(
       "本功能不需要任何特殊權限，因為它僅啟用螢幕喚醒鎖，而不是任何 CPU 喚醒鎖，應用程式會在背景保持必要的活躍，且螢幕不會自動熄滅，這在一些場景下會很有用",
     ),

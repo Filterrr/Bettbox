@@ -291,6 +291,7 @@ abstract class Config with _$Config {
     @Default(false) bool overrideSniffer,
     @Default(false) bool overrideTunnel,
     @Default(false) bool overrideExperimental,
+    @Default(true) bool overrideTestUrl,
     DAV? dav,
     @Default(defaultNetworkProps) NetworkProps networkProps,
     @JsonKey(fromJson: VpnProps.safeFromJson)
@@ -301,6 +302,8 @@ abstract class Config with _$Config {
     @Default(defaultWindowProps) WindowProps windowProps,
     @Default(defaultClashConfig) ClashConfig patchClashConfig,
     @Default(ScriptProps()) ScriptProps scriptProps,
+    @Default('') String nodeExcludeFilter,
+    @Default(5000) int healthCheckTimeout,
   }) = _Config;
 
   factory Config.fromJson(Map<String, Object?> json) => _$ConfigFromJson(json);

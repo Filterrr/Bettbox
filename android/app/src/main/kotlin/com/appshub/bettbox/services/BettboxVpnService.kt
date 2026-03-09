@@ -12,6 +12,7 @@ import android.os.RemoteException
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.appshub.bettbox.GlobalState
+import com.appshub.bettbox.plugins.VpnPlugin
 import com.appshub.bettbox.extensions.getIpv4RouteAddress
 import com.appshub.bettbox.extensions.getIpv6RouteAddress
 import com.appshub.bettbox.extensions.toCIDR
@@ -28,7 +29,32 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         GlobalState.initServiceEngine()
     }
 
-    override fun start(options: VpnOptions): Int {
+    override suspend fun start(options: VpnOptions): Int {
+        if (com.appshub.bettbox.modules.VpnResidualCleaner.isZombieTunAlive()) {
+            try {
+                Log.d("BettboxVpnService", "Found zombie TUN, applying cleanup profile")
+                val builder = Builder()
+                    .setSession("bettbox_cleanup")
+                    .addAddress("10.255.255.254", 30)
+                val interface_ = builder.establish()
+                kotlinx.coroutines.delay(200)
+                interface_?.close()
+                Log.d("BettboxVpnService", "Cleanup profile closed, waiting for system to remove interface")
+                
+                var retryCount = 0
+                while (retryCount < 10) {
+                    kotlinx.coroutines.delay(200)
+                    retryCount++
+                    if (!com.appshub.bettbox.modules.VpnResidualCleaner.isZombieTunAlive()) {
+                        Log.d("BettboxVpnService", "Zombie TUN disappeared")
+                        break
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("BettboxVpnService", "Cleanup error: ${e.message}")
+            }
+        }
+
         return with(Builder()) {
             if (options.ipv4Address.isNotEmpty()) {
                 val cidr = options.ipv4Address.toCIDR()
@@ -87,7 +113,13 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
                     "IPv6 is not supported."
                 )
             }
-            addDnsServer(options.dnsServerAddress)
+            if (options.dnsServerAddress.isNotBlank()) {
+                try {
+                    addDnsServer(options.dnsServerAddress)
+                } catch (e: Exception) {
+                    Log.e("BettboxVpnService", "Invalid DNS: ${options.dnsServerAddress}")
+                }
+            }
             val validMtu = if (options.mtu in 1280..65535) options.mtu else 1480
             setMtu(validMtu)
             options.accessControl.let { accessControl ->
@@ -124,8 +156,12 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
                     )
                 )
             }
-            establish()?.detachFd()
-                ?: throw NullPointerException("Establish VPN rejected by system")
+            val fd = establish()?.detachFd()
+            if (fd == null) {
+                Log.e("BettboxVpnService", "Establish VPN rejected by system")
+                return 0
+            }
+            return fd
         }
     }
 
@@ -173,31 +209,7 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
             builder.setContentTitle(spannable).setContentText(null).build()
         }
 
-        // Android 14+ SPECIAL_USE
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            try {
-                startForeground(
-                    GlobalState.NOTIFICATION_ID,
-                    notification,
-                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-                )
-            } catch (e: Exception) {
-                // Fallback to dataSync for compatibility
-                try {
-                    startForeground(
-                        GlobalState.NOTIFICATION_ID,
-                        notification,
-                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-                    )
-                } catch (e2: Exception) {
-                    // Final fallback without type
-                    startForeground(GlobalState.NOTIFICATION_ID, notification)
-                }
-            }
-        } else {
-            // Android 13 - dataSync
-            startForeground(GlobalState.NOTIFICATION_ID, notification)
-        }
+        this.startForeground(notification)
     }
 
     override fun onTrimMemory(level: Int) {
@@ -231,6 +243,21 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
 
     override fun onUnbind(intent: Intent?): Boolean {
         return super.onUnbind(intent)
+    }
+
+    override fun onRevoke() {
+        Log.d("BettboxVpnService", "VPN revoked by system")
+        try {
+            if (GlobalState.isServiceEngineRunning()) {
+                VpnPlugin.handleStop(force = true)
+            } else {
+                stop()
+            }
+        } catch (e: Exception) {
+            Log.e("BettboxVpnService", "Error during onRevoke cleanup: ${e.message}")
+            stop()
+        }
+        super.onRevoke()
     }
 
     override fun onDestroy() {

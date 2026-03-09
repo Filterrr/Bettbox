@@ -33,6 +33,16 @@ class _ScriptsViewState extends ConsumerState<ScriptsView> {
     ref.read(scriptStateProvider.notifier).del(label);
   }
 
+  Future<void> _handleSyncScript(String id) async {
+    await globalState.appController.safeRun(
+      silence: false,
+      () async {
+        await ref.read(scriptStateProvider.notifier).syncScript(id);
+        globalState.showNotifier(appLocalizations.success);
+      },
+    );
+  }
+
   Widget _buildContent() {
     return Consumer(
       builder: (_, ref, _) {
@@ -87,6 +97,15 @@ class _ScriptsViewState extends ConsumerState<ScriptsView> {
                             _handleToEditor(script: script);
                           },
                         ),
+                        // URL 导入的脚本才显示同步按鈕
+                        if (script.url != null && script.url!.isNotEmpty)
+                          PopupMenuItemData(
+                            icon: Icons.sync,
+                            label: appLocalizations.sync,
+                            onPressed: () {
+                              _handleSyncScript(script.id);
+                            },
+                          ),
                         PopupMenuItemData(
                           icon: Icons.delete,
                           label: appLocalizations.delete,
@@ -111,10 +130,11 @@ class _ScriptsViewState extends ConsumerState<ScriptsView> {
     String title,
     String content, {
     Script? script,
+    String? url,
   }) async {
     Script newScript =
-        script?.copyWith(label: title, content: content) ??
-        Script.create(label: title, content: content);
+        script?.copyWith(label: title, content: content, url: url) ??
+        Script.create(label: title, content: content, url: url);
     if (newScript.label.isEmpty) {
       final res = await globalState.showCommonDialog<String>(
         child: InputDialog(
@@ -175,7 +195,7 @@ class _ScriptsViewState extends ConsumerState<ScriptsView> {
       message: TextSpan(text: appLocalizations.saveChanges),
     );
     if (res == true && mounted) {
-      _handleEditorSave(context, title, content, script: script);
+      _handleEditorSave(context, title, content, script: script, url: script?.url);
     } else {
       return true;
     }
@@ -185,14 +205,24 @@ class _ScriptsViewState extends ConsumerState<ScriptsView> {
   void _handleToEditor({Script? script}) {
     final title = script?.label ?? '';
     final raw = script?.content ?? scriptTemplate;
+    String? importedUrl; // 记录本次 URL 导入的地址
     BaseNavigator.push(
       context,
       EditorPage(
         titleEditable: true,
         title: title,
         supportRemoteDownload: true,
+        onUrlImport: (url) {
+          // URL 导入时技当前 url，保存时会一并存入 Script
+          importedUrl = url;
+        },
         onSave: (context, title, content) {
-          _handleEditorSave(context, title, content, script: script);
+          // 保存时把最新 importedUrl 写入；如果未重新导入则保持原有 url
+          final urlToSave = importedUrl ?? script?.url;
+          final scriptToSave = script != null
+              ? script.copyWith(url: urlToSave)
+              : null;
+          _handleEditorSave(context, title, content, script: scriptToSave, url: urlToSave);
         },
         onPop: (context, title, content) {
           return _handleEditorPop(context, title, content, raw, script: script);

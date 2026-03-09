@@ -155,19 +155,10 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "checkAndCleanResidualVpn" -> {
                 scope.launch {
                     try {
-                        // Check real-time TUN state OR flag set by PackageReplacedReceiver
-                        val prefs = BettboxApplication.getAppContext().getSharedPreferences(
-                            "FlutterSharedPreferences", android.content.Context.MODE_PRIVATE
-                        )
-                        val flaggedForCleanup = prefs.getBoolean("flutter.needs_tun_cleanup", false)
-                        val hasResidual = flaggedForCleanup || VpnResidualCleaner.isZombieTunAlive()
-                        if (hasResidual) {
-                            android.util.Log.i("VpnPlugin", "Detected residual VPN, cleaning...")
-                            VpnResidualCleaner.cleanResidualVpnStateSync()
-                        }
+                        val hasResidual = VpnResidualCleaner.isZombieTunAlive()
+
                         result.success(hasResidual)
                     } catch (e: Exception) {
-                        android.util.Log.e("VpnPlugin", "Failed to check/clean residual VPN: ${e.message}")
                         result.error("CLEANUP_ERROR", e.message, null)
                     }
                 }
@@ -175,6 +166,10 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
             "isZombieTunAlive" -> {
                 result.success(VpnResidualCleaner.isZombieTunAlive())
+            }
+
+            "status" -> {
+                result.success(GlobalState.currentRunState == RunState.START)
             }
 
             else -> {
@@ -390,9 +385,9 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     }
 
 
-    suspend fun getStatus(): Boolean? {
-        return withContext(Dispatchers.Default) {
-            flutterMethodChannel.awaitResult<Boolean>("status", null)
+    fun getStatus(): Boolean {
+        return GlobalState.runLock.withLock {
+            GlobalState.currentRunState == RunState.START && bettBoxService != null
         }
     }
 
@@ -401,38 +396,82 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             bindService()
             return
         }
-        GlobalState.runLock.withLock {
-            if (GlobalState.currentRunState == RunState.START) {
-                // Service running, update notice
-                android.util.Log.d("VpnPlugin", "Service reconnected, updating notification")
-                scope.launch {
-                    startForeground()
+        
+        scope.launch {
+            val startAllowed = GlobalState.runLock.withLock {
+                if (GlobalState.currentRunState == RunState.START) {
+                    android.util.Log.d("VpnPlugin", "Service reconnected, updating notification")
+                    scope.launch { startForeground() }
+                    return@withLock false
                 }
-                return
+                
+                val currentOptions = options
+                if (currentOptions == null) {
+                    android.util.Log.e("VpnPlugin", "Start service failed: options is null")
+                    GlobalState.updateRunState(RunState.STOP)
+                    return@withLock false
+                }
+                
+                GlobalState.updateRunState(RunState.START)
+                lastStartForegroundParams = null
+                true
             }
-            val currentOptions = options
-            if (currentOptions == null) {
-                android.util.Log.e("VpnPlugin", "Start service failed: options is null")
-                GlobalState.updateRunState(RunState.STOP)
-                return
+            
+            if (!startAllowed) return@launch
+            
+            val currentOptions = options ?: return@launch
+            
+            var fd: Int? = 0
+            try {
+                fd = bettBoxService?.start(currentOptions)
+            } catch (e: Exception) {
+                android.util.Log.e("VpnPlugin", "Start failed with exception: ${e.message}")
             }
-            GlobalState.updateRunState(RunState.START)
-            lastStartForegroundParams = null
-            val fd = bettBoxService?.start(currentOptions)
-            Core.startTun(
-                fd = fd ?: 0,
-                protect = this::protect,
-                resolverProcess = this::resolverProcess,
-            )
-            // Update notice on start
-            scope.launch {
-                startForeground()
+            
+            if (fd == null || (currentOptions.enable && fd == 0)) {
+                android.util.Log.w("VpnPlugin", "VPN establish failed, retrying...")
+                delay(300)
+                try {
+                    fd = bettBoxService?.start(currentOptions)
+                } catch (e: Exception) {
+                    android.util.Log.e("VpnPlugin", "Retry start failed with exception: ${e.message}")
+                }
+                if (fd == null || (currentOptions.enable && fd == 0)) {
+                    android.util.Log.e("VpnPlugin", "VPN start failed after retry")
+                    GlobalState.runLock.withLock {
+                        GlobalState.updateRunState(RunState.STOP)
+                    }
+                    ServicePlugin.notifyVpnStartFailed()
+                    try {
+                        val prepareIntent = android.net.VpnService.prepare(BettboxApplication.getAppContext())
+                        if (prepareIntent != null) {
+                            android.util.Log.w("VpnPlugin", "VPN permission blocked. Calling prepare to reset state.")
+                            GlobalState.getCurrentAppPlugin()?.requestVpnPermission { }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("VpnPlugin", "Failed to call prepare: ${e.message}")
+                    }
+                    return@launch
+                }
             }
-            // Install SuspendModule if dozeSuspend is enabled
-            if (options?.dozeSuspend == true) {
-                suspendModule?.uninstall()
-                suspendModule = SuspendModule(BettboxApplication.getAppContext())
-                suspendModule?.install()
+            
+            GlobalState.runLock.withLock {
+                if (GlobalState.currentRunState != RunState.START) {
+                    bettBoxService?.stop()
+                    return@withLock
+                }
+                
+                Core.startTun(
+                    fd = fd ?: 0,
+                    protect = this@VpnPlugin::protect,
+                    resolverProcess = this@VpnPlugin::resolverProcess,
+                )
+                scope.launch { startForeground() }
+                if (options?.dozeSuspend == true) {
+                    suspendModule?.uninstall()
+                    suspendModule = SuspendModule(BettboxApplication.getAppContext())
+                    suspendModule?.install()
+                }
             }
         }
     }
@@ -525,37 +564,49 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
      * Restarts the TUN without rebinding the service.
      */
     fun handleSmartResume(options: VpnOptions): Boolean {
-        GlobalState.runLock.withLock {
-            if (GlobalState.currentRunState == RunState.START) return true
-            GlobalState.isSmartStopped = false
-            this.options = options
+        scope.launch {
+            val startAllowed = GlobalState.runLock.withLock {
+                if (GlobalState.currentRunState == RunState.START) return@withLock false
+                GlobalState.isSmartStopped = false
+                this@VpnPlugin.options = options
+                
+                if (bettBoxService == null) {
+                    bindService()
+                    return@withLock false
+                }
+                
+                GlobalState.updateRunState(RunState.START)
+                lastStartForegroundParams = null
+                true
+            }
+            if (!startAllowed) return@launch
             
-            if (bettBoxService == null) {
-                // Service was destroyed, need to rebind
-                bindService()
-                return true
+            var fd: Int? = 0
+            try {
+                fd = bettBoxService?.start(options)
+            } catch (e: Exception) {
+                android.util.Log.e("VpnPlugin", "Smart resume start failed with exception: ${e.message}")
             }
             
-            GlobalState.updateRunState(RunState.START)
-            lastStartForegroundParams = null
-            val fd = bettBoxService?.start(options)
-            Core.startTun(
-                fd = fd ?: 0,
-                protect = this::protect,
-                resolverProcess = this::resolverProcess,
-            )
-            // Update notification to "Service running"
-            scope.launch {
-                startForeground()
+            GlobalState.runLock.withLock {
+                if (GlobalState.currentRunState != RunState.START) {
+                    bettBoxService?.stop()
+                    return@withLock
+                }
+                Core.startTun(
+                    fd = fd ?: 0,
+                    protect = this@VpnPlugin::protect,
+                    resolverProcess = this@VpnPlugin::resolverProcess,
+                )
+                scope.launch { startForeground() }
+                if (options.dozeSuspend == true) {
+                    suspendModule?.uninstall()
+                    suspendModule = SuspendModule(BettboxApplication.getAppContext())
+                    suspendModule?.install()
+                }
             }
-            // Install SuspendModule if dozeSuspend is enabled
-            if (options.dozeSuspend == true) {
-                suspendModule?.uninstall()
-                suspendModule = SuspendModule(BettboxApplication.getAppContext())
-                suspendModule?.install()
-            }
-            return true
         }
+        return true
     }
 
     private fun bindService() {

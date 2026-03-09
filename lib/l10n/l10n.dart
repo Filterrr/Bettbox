@@ -2579,6 +2579,66 @@ class AppLocalizations {
     );
   }
 
+  /// `Node Exclusion`
+  String get nodeExclusion {
+    return Intl.message(
+      'Node Exclusion',
+      name: 'nodeExclusion',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Exclude all matched nodes`
+  String get nodeExclusionDesc {
+    return Intl.message(
+      'Exclude all matched nodes',
+      name: 'nodeExclusionDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `HK|Hong Kong|🇭🇰`
+  String get nodeExclusionPlaceholder {
+    return Intl.message(
+      'HK|Hong Kong|🇭🇰',
+      name: 'nodeExclusionPlaceholder',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Please check the format`
+  String get formatError {
+    return Intl.message(
+      'Please check the format',
+      name: 'formatError',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Timeout`
+  String get healthCheckTimeout {
+    return Intl.message(
+      'Timeout',
+      name: 'healthCheckTimeout',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Node health check timeout`
+  String get healthCheckTimeoutDesc {
+    return Intl.message(
+      'Node health check timeout',
+      name: 'healthCheckTimeoutDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Concurrency Limit`
   String get concurrencyLimit {
     return Intl.message(
@@ -2624,6 +2684,16 @@ class AppLocalizations {
     return Intl.message(
       'Override profile\'s DNS settings',
       name: 'overrideDnsDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Override Config`
+  String get overrideTestUrl {
+    return Intl.message(
+      'Override Config',
+      name: 'overrideTestUrl',
       desc: '',
       args: [],
     );

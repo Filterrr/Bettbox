@@ -260,6 +260,11 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, "app")
         channel.setMethodCallHandler(this)
+        
+        // Background clean icon cache on startup
+        scope.launch(Dispatchers.IO) {
+            cleanIconCache()
+        }
     }
 
     private fun initShortcuts(label: String) {
@@ -475,6 +480,12 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
     }
 
     private fun updateExcludeFromRecents(value: Boolean?) {
+        // Block for Android 13+ (API 33+)
+        if (Build.VERSION.SDK_INT >= 33) {
+            android.util.Log.d("AppPlugin", "ExcludeFromRecents blocked on Android 13+")
+            return
+        }
+        
         val am = getSystemService(BettboxApplication.getAppContext(), ActivityManager::class.java)
         val task = am?.appTasks?.firstOrNull {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -543,7 +554,6 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
             val packageManager = BettboxApplication.getAppContext().packageManager
             
             try {
-                // 1. Get update time for cache key
                 val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     packageManager?.getPackageInfo(
                         packageName,
@@ -556,9 +566,7 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
                 val cacheKey = "${packageName}_${lastUpdateTime}"
                 val cacheFile = File(iconCacheDir, cacheKey)
                 
-                // 2. Check force refresh
                 val shouldRefresh = if (forceRefresh) {
-                    // Refresh icons for apps updated within 24h
                     val currentTime = System.currentTimeMillis()
                     val twentyFourHoursInMillis = 24 * 60 * 60 * 1000L
                     (currentTime - lastUpdateTime) < twentyFourHoursInMillis
@@ -566,12 +574,10 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
                     false
                 }
                 
-                // 3. Delete old cache if needed
                 if (shouldRefresh && cacheFile.exists()) {
                     cacheFile.delete()
                 }
                 
-                // 4. Check disk cache
                 if (cacheFile.exists() && cacheFile.length() > 0) {
                     try {
                         val cachedBytes = cacheFile.readBytes()
@@ -579,45 +585,25 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
                             return@withContext cachedBytes
                         }
                     } catch (_: Exception) {
-                        // Cache corrupted, regenerate
                         cacheFile.delete()
                     }
                 }
                 
-                // 5. Clean old cache async
-                launch(Dispatchers.IO) {
-                    try {
-                        iconCacheDir.listFiles()?.forEach { file ->
-                            if (file.name.startsWith("${packageName}_") && file.name != cacheKey) {
-                                file.delete()
-                            }
+                try {
+                    iconCacheDir.listFiles()?.forEach { file ->
+                        if (file.name.startsWith("${packageName}_") && file.name != cacheKey) {
+                            file.delete()
                         }
-                    } catch (_: Exception) {
-                        // Ignore clean errors
                     }
-                }
+                } catch (_: Exception) {}
                 
-                // 6. Load and cache icon
                 val drawable = packageManager?.getApplicationIcon(packageName)
                 if (drawable != null) {
                     val bytes = drawableToPngBytes(drawable, getIconSizePx())
                     
-                    // Write cache async
-                    launch(Dispatchers.IO) {
-                        try {
-                            cacheFile.writeBytes(bytes)
-                            
-                            // Limit cache size (max 500)
-                            val cacheFiles = iconCacheDir.listFiles()
-                            if (cacheFiles != null && cacheFiles.size > 500) {
-                                cacheFiles.sortedBy { it.lastModified() }
-                                    .take(cacheFiles.size - 500)
-                                    .forEach { it.delete() }
-                            }
-                        } catch (_: Exception) {
-                            // Ignore write errors
-                        }
-                    }
+                    try {
+                        cacheFile.writeBytes(bytes)
+                    } catch (_: Exception) {}
                     
                     return@withContext bytes
                 }
@@ -629,13 +615,13 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
         }
     }
 
-    private fun getPackages(): List<Package> {
+    private suspend fun getPackages(): List<Package> = withContext(Dispatchers.IO) {
         val packageManager = BettboxApplication.getAppContext().packageManager
-        if (packages.isNotEmpty()) return packages
+        if (packages.isNotEmpty()) return@withContext packages
+        
         val appContext = BettboxApplication.getAppContext()
         val selfPackageName = appContext.packageName
         
-        // Use GET_META_DATA to reduce payload
         val apps = packageManager?.getInstalledApplications(PackageManager.GET_META_DATA).orEmpty()
         val results = ArrayList<Package>(apps.size)
 
@@ -643,7 +629,6 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
             val packageName = appInfo.packageName ?: continue
             if (packageName == selfPackageName) continue
 
-            // Lazy load labels
             val label = try {
                 appInfo.loadLabel(packageManager).toString()
             } catch (_: Exception) {
@@ -652,7 +637,6 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
 
             val system = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
 
-            // Check internet permission
             val internet = try {
                 packageManager?.checkPermission(
                     Manifest.permission.INTERNET,
@@ -662,7 +646,6 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
                 false
             }
 
-            // Simple timestamp retrieval
             val lastUpdateTime = try {
                 appInfo.sourceDir?.let { File(it).lastModified() } ?: 0L
             } catch (_: Exception) {
@@ -681,27 +664,34 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
         }
 
         packages.addAll(results)
-        return packages
+        return@withContext packages
     }
 
     private suspend fun getPackagesToList(): List<Map<String, Any>> {
-        return withContext(Dispatchers.Default) {
-            getPackages().map {
-                hashMapOf(
-                    "packageName" to it.packageName,
-                    "label" to it.label,
-                    "system" to it.system,
-                    "internet" to it.internet,
-                    "lastUpdateTime" to it.lastUpdateTime,
-                )
-            }
+        return getPackages().map {
+            hashMapOf(
+                "packageName" to it.packageName,
+                "label" to it.label,
+                "system" to it.system,
+                "internet" to it.internet,
+                "lastUpdateTime" to it.lastUpdateTime,
+            )
         }
     }
 
     private suspend fun getChinaPackageNamesList(): List<String> {
-        return withContext(Dispatchers.Default) {
-            getPackages().map { it.packageName }.filter { isChinaPackage(it) }
-        }
+        return getPackages().map { it.packageName }.filter { isChinaPackage(it) }
+    }
+
+    private fun cleanIconCache() {
+        try {
+            val cacheFiles = iconCacheDir.listFiles()
+            if (cacheFiles != null && cacheFiles.size > 500) {
+                cacheFiles.sortedBy { it.lastModified() }
+                    .take(cacheFiles.size - 500)
+                    .forEach { it.delete() }
+            }
+        } catch (_: Exception) {}
     }
 
     fun requestVpnPermission(callBack: () -> Unit) {

@@ -473,6 +473,14 @@ class GlobalState {
             entry.value.splitByMultipleSeparators;
       }
     }
+    
+    // Android: protect port 53 (requires root), auto-change to 1053
+    if (system.isAndroid && rawConfig['dns']['listen'] != null) {
+      final listen = rawConfig['dns']['listen'] as String;
+      if (listen.endsWith(':53')) {
+        rawConfig['dns']['listen'] = listen.replaceAll(':53', ':1053');
+      }
+    }
 
     if (rawConfig['ntp'] == null) {
       rawConfig['ntp'] = {};
@@ -510,6 +518,74 @@ class GlobalState {
       final experimental = realPatchConfig.experimental;
       rawConfig['experimental'] = experimental.toJson();
     }
+
+    // Apply node filter to all proxy groups
+    final nodeExcludeFilter = globalState.config.nodeExcludeFilter;
+    final healthCheckTimeout = globalState.config.healthCheckTimeout;
+    if ((nodeExcludeFilter.isNotEmpty || healthCheckTimeout != 5000) &&
+        rawConfig['proxy-groups'] is List) {
+      RegExp? filterRegex;
+      if (nodeExcludeFilter.isNotEmpty) {
+        try {
+          filterRegex = RegExp(nodeExcludeFilter);
+        } catch (_) {}
+      }
+
+      final proxyGroups = rawConfig['proxy-groups'] as List;
+
+      final Set<String> protectedNames = {
+        'DIRECT', 'REJECT', 'REJECT-DROP', 'COMPATIBLE', 'PASS',
+      };
+      for (final g in proxyGroups) {
+        if (g is Map && g['name'] is String) {
+          protectedNames.add(g['name'] as String);
+        }
+      }
+
+      for (final group in proxyGroups) {
+        if (group is! Map) continue;
+
+        if (filterRegex != null && group['use'] != null) {
+          final existing = group['exclude-filter'];
+          if (existing is String && existing.isNotEmpty) {
+            group['exclude-filter'] = '$existing|$nodeExcludeFilter';
+          } else {
+            group['exclude-filter'] = nodeExcludeFilter;
+          }
+        }
+
+        if (filterRegex != null && group['proxies'] is List) {
+          final proxiesList = group['proxies'] as List;
+          final filtered = proxiesList.where((item) {
+            if (item is! String || protectedNames.contains(item)) return true;
+            return !filterRegex!.hasMatch(item);
+          }).toList();
+          
+          if (filtered.isEmpty && (group['use'] == null || (group['use'] is List && group['use'].isEmpty))) {
+            filtered.add('DIRECT');
+          }
+          group['proxies'] = filtered;
+        }
+
+        if (healthCheckTimeout != 5000) {
+          group['timeout'] ??= healthCheckTimeout;
+        }
+      }
+
+      if (filterRegex != null && rawConfig['proxy-providers'] is Map) {
+        final proxyProviders = rawConfig['proxy-providers'] as Map;
+        for (final provider in proxyProviders.values) {
+          if (provider is! Map) continue;
+          final existing = provider['exclude-filter'];
+          if (existing is String && existing.isNotEmpty) {
+            provider['exclude-filter'] = '$existing|$nodeExcludeFilter';
+          } else {
+            provider['exclude-filter'] = nodeExcludeFilter;
+          }
+        }
+      }
+    }
+
     var rules = [];
     // Support both field names: rules (plural) and rule (singular)
     if (rawConfig['rules'] != null) {
@@ -707,6 +783,7 @@ class DetectionState {
   void manualRefresh() {
     _isIpMasked = false;
     _originalIpInfo = null;
+    state.value = state.value.copyWith(ipInfo: null);
     startCheck();
   }
 
@@ -817,22 +894,20 @@ class DetectionState {
       return;
     }
 
+    final isStateChanged = _preIsStart != isStart;
     _preIsStart = isStart;
+    
     _cancelPreviousRequest();
     _cancelToken = CancelToken();
     final requestId = ++_requestId;
 
-    // Set loading state, clear old IP to show loading animation
     state.value = state.value.copyWith(
       isLoading: true,
       errorMessage: null,
-      ipInfo: null, // Clear old IP, show loading
+      ipInfo: isStateChanged ? null : state.value.ipInfo,
     );
 
-    // First launch uses shorter timeout for quick failure
-    final timeout = _isFirstLaunch
-        ? const Duration(seconds: 3) // First: 3s
-        : const Duration(seconds: 5); // Later: 5s
+    final timeout = const Duration(seconds: 5);
 
     // When off, use domestic API by default
     final res = isStart

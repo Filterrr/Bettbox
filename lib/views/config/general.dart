@@ -111,72 +111,177 @@ class KeepAliveIntervalItem extends ConsumerWidget {
 class TestUrlItem extends ConsumerWidget {
   const TestUrlItem({super.key});
 
-  // Custom URL marker
-  static const String _customUrlMarker = '__CUSTOM_URL__';
-
-  // Pre-computed options list to avoid recreating on every build
-  static final List<String> _options = [...presetTestUrls, _customUrlMarker];
-
   @override
   Widget build(BuildContext context, ref) {
     final testUrl = ref.watch(
       appSettingProvider.select((state) => state.testUrl),
     );
 
-    // Check if current URL is in preset list
-    final isPresetUrl = presetTestUrls.contains(testUrl);
-
-    return ListItem<String>.options(
+    return ListItem(
       leading: const Icon(Icons.timeline),
       title: Text(appLocalizations.testUrl),
       subtitle: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Text(testUrl),
       ),
-      delegate: OptionsDelegate<String>(
-        title: appLocalizations.testUrl,
-        options: _options,
-        value: isPresetUrl ? testUrl : _customUrlMarker,
-        onChanged: (String? value) async {
-          if (value == null) return;
+      onTap: () async {
+        await globalState.showCommonDialog(
+          child: _TestUrlDialog(currentUrl: testUrl),
+        );
+      },
+    );
+  }
+}
 
-          if (value == _customUrlMarker) {
-            // Show custom URL input dialog
-            final customUrl = await globalState.showCommonDialog<String>(
-              child: InputDialog(
-                title: appLocalizations.customUrl,
-                value: isPresetUrl ? '' : testUrl,
-                resetValue: defaultTestUrl,
-                validator: (String? inputValue) {
-                  if (inputValue == null || inputValue.isEmpty) {
-                    return appLocalizations.emptyTip(appLocalizations.testUrl);
-                  }
-                  if (!inputValue.isUrl) {
-                    return appLocalizations.urlTip(appLocalizations.testUrl);
-                  }
-                  return null;
+class _TestUrlDialog extends ConsumerWidget {
+  final String currentUrl;
+
+  const _TestUrlDialog({required this.currentUrl});
+
+  @override
+  Widget build(BuildContext context, ref) {
+    final overrideTestUrl = ref.watch(overrideTestUrlProvider);
+    final isPresetUrl = presetTestUrls.contains(currentUrl);
+
+    return CommonDialog(
+      title: appLocalizations.testUrl,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Override switch
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  appLocalizations.overrideTestUrl,
+                  style: context.textTheme.bodyMedium,
+                ),
+                Switch(
+                  value: overrideTestUrl,
+                  onChanged: (bool value) {
+
+                    ref.read(overrideTestUrlProvider.notifier).value = value;
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          // URL list
+          ...presetTestUrls.map((url) {
+            final isSelected = currentUrl == url;
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  ref
+                      .read(appSettingProvider.notifier)
+                      .updateState((state) => state.copyWith(testUrl: url));
+                  Navigator.of(context, rootNavigator: true).pop();
                 },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isSelected
+                            ? Icons.check_circle_rounded
+                            : Icons.circle_outlined,
+                        size: 21,
+                        color: isSelected
+                            ? context.colorScheme.primary
+                            : context.colorScheme.onSurfaceVariant.withValues(
+                                alpha: 0.6,
+                              ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: isSelected
+                            ? SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Text(
+                                  url,
+                                  style: context.textTheme.bodyMedium,
+                                ),
+                              )
+                            : Text(
+                                url,
+                                style: context.textTheme.bodyMedium,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             );
+          }),
+          // Custom URL option
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () async {
+                final notifier = ref.read(appSettingProvider.notifier);
+                Navigator.of(context, rootNavigator: true).pop();
+                final customUrl = await globalState.showCommonDialog<String>(
+                  child: InputDialog(
+                    title: appLocalizations.customUrl,
+                    value: isPresetUrl ? '' : currentUrl,
+                    resetValue: defaultTestUrl,
+                    validator: (String? inputValue) {
+                      if (inputValue == null || inputValue.isEmpty) {
+                        return appLocalizations.emptyTip(appLocalizations.testUrl);
+                      }
+                      if (!inputValue.isUrl) {
+                        return appLocalizations.urlTip(appLocalizations.testUrl);
+                      }
+                      return null;
+                    },
+                  ),
+                );
 
-            if (customUrl != null) {
-              ref
-                  .read(appSettingProvider.notifier)
-                  .updateState((state) => state.copyWith(testUrl: customUrl));
-            }
-          } else {
-            // Use preset URL
-            ref
-                .read(appSettingProvider.notifier)
-                .updateState((state) => state.copyWith(testUrl: value));
-          }
-        },
-        textBuilder: (url) {
-          if (url == _customUrlMarker) {
-            return appLocalizations.customUrl;
-          }
-          return url;
-        },
+                if (customUrl != null) {
+                  notifier.updateState((state) => state.copyWith(testUrl: customUrl));
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      !isPresetUrl
+                          ? Icons.check_circle_rounded
+                          : Icons.circle_outlined,
+                      size: 21,
+                      color: !isPresetUrl
+                          ? context.colorScheme.primary
+                          : context.colorScheme.onSurfaceVariant.withValues(
+                              alpha: 0.6,
+                            ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        appLocalizations.customUrl,
+                        style: context.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

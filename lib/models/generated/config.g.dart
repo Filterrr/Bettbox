@@ -400,6 +400,7 @@ _Config _$ConfigFromJson(Map<String, dynamic> json) => _Config(
   overrideSniffer: json['overrideSniffer'] as bool? ?? false,
   overrideTunnel: json['overrideTunnel'] as bool? ?? false,
   overrideExperimental: json['overrideExperimental'] as bool? ?? false,
+  overrideTestUrl: json['overrideTestUrl'] as bool? ?? true,
   dav: json['dav'] == null
       ? null
       : DAV.fromJson(json['dav'] as Map<String, dynamic>),
@@ -424,6 +425,8 @@ _Config _$ConfigFromJson(Map<String, dynamic> json) => _Config(
   scriptProps: json['scriptProps'] == null
       ? const ScriptProps()
       : ScriptProps.fromJson(json['scriptProps'] as Map<String, dynamic>),
+  nodeExcludeFilter: json['nodeExcludeFilter'] as String? ?? '',
+  healthCheckTimeout: (json['healthCheckTimeout'] as num?)?.toInt() ?? 5000,
 );
 
 Map<String, dynamic> _$ConfigToJson(_Config instance) => <String, dynamic>{
@@ -436,6 +439,7 @@ Map<String, dynamic> _$ConfigToJson(_Config instance) => <String, dynamic>{
   'overrideSniffer': instance.overrideSniffer,
   'overrideTunnel': instance.overrideTunnel,
   'overrideExperimental': instance.overrideExperimental,
+  'overrideTestUrl': instance.overrideTestUrl,
   'dav': instance.dav,
   'networkProps': instance.networkProps,
   'vpnProps': instance.vpnProps,
@@ -444,4 +448,6 @@ Map<String, dynamic> _$ConfigToJson(_Config instance) => <String, dynamic>{
   'windowProps': instance.windowProps,
   'patchClashConfig': instance.patchClashConfig,
   'scriptProps': instance.scriptProps,
+  'nodeExcludeFilter': instance.nodeExcludeFilter,
+  'healthCheckTimeout': instance.healthCheckTimeout,
 };

@@ -150,6 +150,22 @@ final overrideDnsProvider =
     );
 
 typedef _$OverrideDns = AutoDisposeNotifier<bool>;
+String _$overrideTestUrlHash() => r'8a5a63f5abc3eee0293442891c92a5062c09206e';
+
+/// See also [OverrideTestUrl].
+@ProviderFor(OverrideTestUrl)
+final overrideTestUrlProvider =
+    AutoDisposeNotifierProvider<OverrideTestUrl, bool>.internal(
+      OverrideTestUrl.new,
+      name: r'overrideTestUrlProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$overrideTestUrlHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$OverrideTestUrl = AutoDisposeNotifier<bool>;
 String _$overrideNtpHash() => r'da4620088529c14a7ceeeaffb1c528aa4202ea46';
 
 /// See also [OverrideNtp].
@@ -248,7 +264,7 @@ final proxiesStyleSettingProvider =
     );
 
 typedef _$ProxiesStyleSetting = AutoDisposeNotifier<ProxiesStyle>;
-String _$scriptStateHash() => r'afbb70d1dd7e577b2377ecd8ab35d0905c1d0e87';
+String _$scriptStateHash() => r'dc958461c4af0e41a47baea4a4d984e5abc19a9c';
 
 /// See also [ScriptState].
 @ProviderFor(ScriptState)
@@ -296,5 +312,21 @@ final windowLockedProvider =
     );
 
 typedef _$WindowLocked = AutoDisposeNotifier<bool>;
+String _$nodeExcludeFilterHash() => r'5fc26cba4cd5c9dfdb57fcd4eb4bf59d39abafc3';
+
+/// See also [NodeExcludeFilter].
+@ProviderFor(NodeExcludeFilter)
+final nodeExcludeFilterProvider =
+    AutoDisposeNotifierProvider<NodeExcludeFilter, String>.internal(
+      NodeExcludeFilter.new,
+      name: r'nodeExcludeFilterProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$nodeExcludeFilterHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$NodeExcludeFilter = AutoDisposeNotifier<String>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

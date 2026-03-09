@@ -127,10 +127,19 @@ Future<void> _service(List<String> flags) async {
       },
     ),
   );
-  if (!quickStart) {
+  final bootStart = flags.contains('boot');
+  
+  if (!quickStart && !bootStart) {
     _handleMainIpc(clashLibHandler);
   } else {
-    commonPrint.log('quick start');
+    // For boot start, only proceed if autoRun is enabled
+    if (bootStart && !globalState.config.appSetting.autoRun) {
+      commonPrint.log('Silent boot detected, but autoRun is disabled. Staying idle.');
+      _handleMainIpc(clashLibHandler);
+      return;
+    }
+
+    commonPrint.log('Executing ${bootStart ? "boot" : "quick"} start sequence');
     await ClashCore.initGeo();
     app.tip(appLocalizations.startVpn);
     final homeDirPath = await appPath.homeDirPath;
@@ -138,17 +147,17 @@ Future<void> _service(List<String> flags) async {
     final clashConfig = globalState.config.patchClashConfig.copyWith.tun(
       enable: false,
     );
+    
+    if (system.isAndroid) {
+      await vpn?.checkAndCleanResidualVpn();
+    }
+    
+    final params = await globalState.getSetupParams(pathConfig: clashConfig);
     Future(() async {
       final profileId = globalState.config.currentProfileId;
       if (profileId == null) {
         return;
       }
-
-      if (system.isAndroid) {
-        await vpn?.checkAndCleanResidualVpn();
-      }
-
-      final params = await globalState.getSetupParams(pathConfig: clashConfig);
       final res = await clashLibHandler.quickStart(
         InitParams(homeDir: homeDirPath, version: version),
         params,

@@ -23,7 +23,7 @@ import kotlinx.coroutines.async
 
 interface BaseServiceInterface {
 
-    fun start(options: VpnOptions): Int
+    suspend fun start(options: VpnOptions): Int
 
     fun stop()
 
@@ -167,19 +167,42 @@ fun Service.ensureNotificationChannel() {
     }
 }
 
+
 @SuppressLint("ForegroundServiceType")
 fun Service.startForeground(notification: Notification) {
     ensureNotificationChannel()
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-        try {
+    try {
+        val sdkInt = Build.VERSION.SDK_INT
+        
+        if (sdkInt >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // API 34 及以上 (Android 14+)
+            val foregroundServiceType = if (this is android.net.VpnService) {
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or 1024
+            } else {
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            }
+            
             startForeground(
-                GlobalState.NOTIFICATION_ID, notification, FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                GlobalState.NOTIFICATION_ID, 
+                notification, 
+                foregroundServiceType
             )
-        } catch (_: Exception) {
+        } 
+        else if (sdkInt >= Build.VERSION_CODES.Q) { 
+            startForeground(
+                GlobalState.NOTIFICATION_ID, 
+                notification, 
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } 
+        else { 
             startForeground(GlobalState.NOTIFICATION_ID, notification)
         }
-    } else {
-        startForeground(GlobalState.NOTIFICATION_ID, notification)
+    } catch (e: Exception) {
+        android.util.Log.e("BaseServiceInterface", "startForeground failed: ${e.message}")
+        try {
+            startForeground(GlobalState.NOTIFICATION_ID, notification)
+        } catch (e2: Exception) {
+            android.util.Log.e("BaseServiceInterface", "Final fallback failed: ${e2.message}")
+        }
     }
 }

@@ -430,18 +430,27 @@ bool isCurrentPage(
 
 @riverpod
 String getRealTestUrl(Ref ref, [String? testUrl]) {
+  final overrideTestUrl = ref.watch(overrideTestUrlProvider);
   final currentTestUrl = ref.watch(appSettingProvider).testUrl;
-  return testUrl.getSafeValue(currentTestUrl);
+  
+  // If override is enabled or testUrl is null or empty, use client setting
+  if (overrideTestUrl || testUrl == null || testUrl.isEmpty) {
+    return currentTestUrl;
+  }
+  
+  // Otherwise use the provided testUrl from config file
+  return testUrl;
 }
 
 @riverpod
 int? getDelay(Ref ref, {required String proxyName, String? testUrl}) {
-  final currentTestUrl = ref.watch(getRealTestUrlProvider(testUrl));
   final proxyCardState = ref.watch(getProxyCardStateProvider(proxyName));
+  final currentTestUrl = ref.watch(
+    getRealTestUrlProvider(proxyCardState.testUrl.getSafeValue(testUrl ?? '')),
+  );
   final delay = ref.watch(
     delayDataSourceProvider.select((state) {
-      final delayMap =
-          state[proxyCardState.testUrl.getSafeValue(currentTestUrl)];
+      final delayMap = state[currentTestUrl];
       return delayMap?[proxyCardState.proxyName];
     }),
   );
