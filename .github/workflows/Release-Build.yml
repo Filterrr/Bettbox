@@ -38,13 +38,13 @@ jobs:
           - platform: windows
             os: windows-2022
             arch: amd64
-            go_version: '1.25.x'
+            go_version: 'stable'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
           - platform: windows
             os: windows-2022
             arch: arm64
-            go_version: '1.25.x'
+            go_version: 'stable'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
           - platform: windows
@@ -59,13 +59,13 @@ jobs:
           - platform: macos
             os: macos-15
             arch: arm64
-            go_version: '1.25.x'
+            go_version: 'stable'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
           - platform: macos
             os: macos-15
             arch: amd64
-            go_version: '1.25.x'
+            go_version: 'stable'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
           - platform: macos
@@ -80,13 +80,13 @@ jobs:
           - platform: linux
             os: ubuntu-24.04
             arch: amd64
-            go_version: '1.25.x'
+            go_version: 'stable'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
           - platform: linux
             os: ubuntu-24.04-arm
             arch: arm64
-            go_version: '1.25.x'
+            go_version: 'stable'
             flutter_channel: 'master'
 
     steps:
