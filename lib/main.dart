@@ -11,6 +11,7 @@ import 'package:bett_box/plugins/vpn.dart';
 import 'package:bett_box/state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'application.dart';
@@ -70,6 +71,13 @@ Future<void> main() async {
 }
 
 Future<void> _runApp(int version) async {
+  if (system.isAndroid && globalState.config.appSetting.enableHighRefreshRate) {
+    try {
+      await FlutterDisplayMode.setHighRefreshRate();
+    } catch (e) {
+      commonPrint.log('Failed to set high refresh rate: $e');
+    }
+  }
   await android?.init();
   await window?.init(version);
   HttpOverrides.global = BettboxHttpOverrides();
@@ -94,7 +102,6 @@ Future<void> _service(List<String> flags) async {
         await app.tip(appLocalizations.stopVpn);
         clashLibHandler.stopListener();
         await vpn?.stop();
-        exit(0);
       },
       onReconnectIpc: () {
         commonPrint.log('Service: reconnectIpc requested, re-establishing IPC');
@@ -166,7 +173,7 @@ Future<void> _service(List<String> flags) async {
       debugPrint(res);
       if (res.isNotEmpty) {
         await vpn?.stop();
-        exit(0);
+        return;
       }
       await vpn?.start(clashLibHandler.getAndroidVpnOptions());
       

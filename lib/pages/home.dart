@@ -225,27 +225,36 @@ class _HomeBackScopeState extends ConsumerState<HomeBackScope> {
         return widget.child;
       }
 
-      // Android < 31（Android 11 及以下）：使用 CommonPopScope 拦截
-      if (sdkInt! < 31) {
-        return CommonPopScope(
-          onPop: () async {
-            final canPop = Navigator.canPop(context);
-            if (canPop) {
-              Navigator.pop(context);
-            } else {
-              await globalState.appController.handleBackOrExit();
+      final backBlock = ref.watch(backBlockProvider);
+      final currentPage = ref.watch(currentPageLabelProvider);
+      final rootPageLabels = ref.watch(
+        currentNavigationItemsStateProvider.select(
+          (state) => state.value.map((item) => item.label).toSet(),
+        ),
+      );
+      final isCurrentRootPage = rootPageLabels.contains(currentPage);
+
+      if (sdkInt! >= 31) {
+        return PopScope(
+          canPop: !backBlock && isCurrentRootPage,
+          onPopInvokedWithResult: (didPop, _) async {
+            if (didPop || backBlock) return;
+            if (!isCurrentRootPage) {
+              globalState.appController.toPage(PageLabel.dashboard);
             }
-            return false;
           },
           child: widget.child,
         );
       }
 
-      final backBlock = ref.watch(backBlockProvider);
       return PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, _) async {
           if (didPop || backBlock) return;
+          if (!isCurrentRootPage) {
+            globalState.appController.toPage(PageLabel.dashboard);
+            return;
+          }
           final canPop = Navigator.canPop(context);
           if (canPop) {
             Navigator.pop(context);

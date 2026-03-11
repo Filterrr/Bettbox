@@ -4898,6 +4898,26 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `High Refresh Rate`
+  String get highRefreshRate {
+    return Intl.message(
+      'High Refresh Rate',
+      name: 'highRefreshRate',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Enable highest refresh rate support`
+  String get highRefreshRateDesc {
+    return Intl.message(
+      'Enable highest refresh rate support',
+      name: 'highRefreshRateDesc',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

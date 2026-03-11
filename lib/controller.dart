@@ -83,9 +83,13 @@ class AppController {
 
   Future<void> restartCore() async {
     commonPrint.log('restart core');
+    final wasRunning = _ref.read(runTimeProvider.notifier).isStart;
+    if (wasRunning) {
+      await globalState.handleStop();
+    }
     await clashService?.reStart();
     await _initCore();
-    if (_ref.read(runTimeProvider.notifier).isStart) {
+    if (wasRunning) {
       await globalState.handleStart();
     }
   }
@@ -736,6 +740,23 @@ class AppController {
     _wakelockSyncTimer = null;
   }
 
+  Future<void> _initHighRefreshRateDefault() async {
+    try {
+      final androidVersion = await system.version;
+      final currentSetting = _ref.read(appSettingProvider);
+      
+      final bool shouldEnableHighRefreshRate = androidVersion >= 31; // Android 12+
+      
+      if (currentSetting.enableHighRefreshRate != shouldEnableHighRefreshRate) {
+        _ref.read(appSettingProvider.notifier).updateState(
+          (state) => state.copyWith(enableHighRefreshRate: shouldEnableHighRefreshRate),
+        );
+      }
+    } catch (e) {
+      commonPrint.log('Failed to initialize high refresh rate default: $e');
+    }
+  }
+
   Future<void> init() async {
     FlutterError.onError = (details) {
       if (kDebugMode) {
@@ -749,6 +770,10 @@ class AppController {
         await updateStatus(false);
       }
     });
+
+    if (system.isAndroid) {
+      await _initHighRefreshRateDefault();
+    }
 
     try {
       final wakelockEnabled = await WakelockPlus.enabled;
@@ -803,40 +828,54 @@ class AppController {
 
     bool isNativeRunning = false;
     if (system.isAndroid) {
-      isNativeRunning = await (globalState.isService ? vpn?.getStatus() : vpn_service.service?.getStatus()) ?? false;
-      
-      if (isNativeRunning && !globalState.isStart) {
-        commonPrint.log('Native VPN is running (Tile started). Hot-attaching UI state...');
-        
-        _ref.read(runTimeProvider.notifier).value = 0;
-        
-
-        await globalState.updateStartTime();
-        await clashCore.startListener();
-        
-        final prefs = await preferences.sharedPreferencesCompleter.future;
-        await prefs?.setBool('is_vpn_running', true);
-        
-        globalState.startUpdateTasks([updateRunTime, updateTraffic]);
-        
-        addCheckIpNumDebounce();
-        _backgroundLoad();
-        return;
-      }
+      isNativeRunning =
+          await (globalState.isService
+                  ? vpn?.getStatus()
+                  : vpn_service.service?.getStatus()) ??
+              false;
     }
 
-    final (needRecovery, recoveryReason, isUpgrade) = await _detectRecoveryReason(isNativeRunning);
+    final (needRecovery, recoveryReason, isUpgrade) = await _detectRecoveryReason(
+      isNativeRunning,
+    );
+    final (needsTunCleanup, wasRunningBeforeUpgrade) = system.isAndroid
+        ? await _readAndroidUpgradeRecoveryFlags()
+        : (false, false);
+
+    if (system.isAndroid &&
+        isUpgrade &&
+        (needsTunCleanup || wasRunningBeforeUpgrade)) {
+      await _recoverAndroidVpnAfterUpgrade(
+        shouldRestoreVpn: wasRunningBeforeUpgrade || isNativeRunning,
+      );
+      return;
+    }
+
+    if (system.isAndroid && isNativeRunning && !globalState.isStart) {
+      _ref.read(runTimeProvider.notifier).value = 0;
+
+      await globalState.updateStartTime();
+      await clashCore.startListener();
+
+      final prefs = await preferences.sharedPreferencesCompleter.future;
+      await prefs?.setBool('is_vpn_running', true);
+
+      globalState.startUpdateTasks([updateRunTime, updateTraffic]);
+
+      addCheckIpNumDebounce();
+      _backgroundLoad();
+      return;
+    }
 
     if (needRecovery) {
       commonPrint.log('Handling Recovery: $recoveryReason');
-      
+
       try {
         await applyProfile(silence: true);
-        
+
         if (system.isAndroid) {
           final prefs = await preferences.sharedPreferencesCompleter.future;
           await prefs?.setBool('is_vpn_running', false);
-          await prefs?.setBool('needs_tun_cleanup', false);
         }
       } catch (e) {
         commonPrint.log('Recovery applyProfile failed: $e');
@@ -857,7 +896,6 @@ class AppController {
       addCheckIpNumDebounce();
     }
   }
-
   Future<(bool, String, bool)> _detectRecoveryReason(bool isNativeRunning) async {
     final results = await Future.wait<dynamic>([
       preferences.sharedPreferencesCompleter.future,
@@ -911,6 +949,51 @@ class AppController {
     }
 
     return (false, '', false);
+  }
+
+
+  Future<(bool, bool)> _readAndroidUpgradeRecoveryFlags() async {
+    final prefs = await preferences.sharedPreferencesCompleter.future;
+    final needsTunCleanup = prefs?.getBool('needs_tun_cleanup') ?? false;
+    final wasRunningBeforeUpgrade =
+        prefs?.getBool('vpn_running_before_upgrade') ?? false;
+    return (needsTunCleanup, wasRunningBeforeUpgrade);
+  }
+
+  Future<void> _recoverAndroidVpnAfterUpgrade({
+    required bool shouldRestoreVpn,
+  }) async {
+    final prefs = await preferences.sharedPreferencesCompleter.future;
+    try {
+      try {
+        await vpn_service.service?.setSmartStopped(false);
+      } catch (e) {
+        commonPrint.log('Reset smart-stopped flag failed: $e');
+      }
+
+      try {
+        await vpn_service.service?.stopVpn();
+      } catch (e) {
+        commonPrint.log('Stop stale VPN after upgrade failed: $e');
+      }
+
+      globalState.startTime = null;
+      _ref.read(runTimeProvider.notifier).value = null;
+      clashCore.resetTraffic();
+      _ref.read(trafficsProvider.notifier).clear();
+      _ref.read(totalTrafficProvider.notifier).value = Traffic();
+
+      await Future.delayed(const Duration(milliseconds: 1500));
+      await applyProfile(silence: true);
+
+      if (shouldRestoreVpn) {
+        await updateStatus(true);
+      } else {
+        addCheckIpNumDebounce();
+      }
+    } finally {
+      await prefs?.setBool('vpn_running_before_upgrade', false);
+    }
   }
 
   void setDelay(Delay delay) {
@@ -1274,9 +1357,9 @@ class AppController {
       // Add profiles dir (valid subscriptions only)
       final profilesDir = Directory(profilesPath);
       if (await profilesDir.exists()) {
-        final files = profilesDir.listSync(
+        final files = await profilesDir.list(
           recursive: false,
-        ); // First level only
+        ).toList(); // First level only
 
         for (final file in files) {
           if (file is File) {
@@ -1309,7 +1392,7 @@ class AppController {
           );
 
           if (await providersDir.exists()) {
-            final providerFiles = providersDir.listSync(recursive: true);
+            final providerFiles = await providersDir.list(recursive: true).toList();
 
             for (final providerFile in providerFiles) {
               if (providerFile is File) {
@@ -1649,7 +1732,7 @@ class AppController {
       // Partial recovery, missing URLs
       message =
           'Restored ${profiles.length} subscriptions.\n\n'
-          '⚠️ URLs not included. Edit subscriptions to add URLs for auto-update.';
+          'Warning: URLs not included. Edit subscriptions to add URLs for auto-update.';
     } else {
       // Complete recovery
       message = 'Restored ${profiles.length} subscriptions.';
