@@ -36,19 +36,19 @@ jobs:
 
           # --- Windows 平台 ---
           - platform: windows
-            os: windows-2022
+            os: windows-2025
             arch: amd64
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
           - platform: windows
-            os: windows-2022
+            os: windows-2025
             arch: arm64
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
           - platform: windows
-            os: windows-2022
+            os: windows-2025
             arch: amd64
             compatible: true
             go_version: '1.22.x'
