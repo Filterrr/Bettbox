@@ -8,7 +8,6 @@ import 'package:bett_box/clash/clash.dart';
 import 'package:bett_box/enum/enum.dart';
 import 'package:bett_box/plugins/app.dart';
 import 'package:bett_box/plugins/service.dart' as vpn_service;
-import 'package:bett_box/plugins/vpn.dart';
 import 'package:bett_box/providers/providers.dart';
 import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/dialog.dart';
@@ -177,14 +176,11 @@ class AppController {
     final currentLastModified = await _ref
         .read(currentProfileProvider)
         ?.profileLastModified;
-
-    // Skip if unchanged
     if (currentLastModified != null &&
         lastProfileModified != null &&
         currentLastModified <= lastProfileModified!) {
       return false;
     }
-
     return true;
   }
 
@@ -826,59 +822,18 @@ class AppController {
       await globalState.updateStartTime();
     }
 
-    bool isNativeRunning = false;
-    if (system.isAndroid) {
-      isNativeRunning =
-          await (globalState.isService
-                  ? vpn?.getStatus()
-                  : vpn_service.service?.getStatus()) ??
-              false;
-    }
-
-    final (needRecovery, recoveryReason, isUpgrade) = await _detectRecoveryReason(
-      isNativeRunning,
-    );
-    final (needsTunCleanup, wasRunningBeforeUpgrade) = system.isAndroid
-        ? await _readAndroidUpgradeRecoveryFlags()
-        : (false, false);
-
-    if (system.isAndroid &&
-        isUpgrade &&
-        (needsTunCleanup || wasRunningBeforeUpgrade)) {
-      await _recoverAndroidVpnAfterUpgrade(
-        shouldRestoreVpn: wasRunningBeforeUpgrade || isNativeRunning,
-      );
-      return;
-    }
-
-    if (system.isAndroid && isNativeRunning && !globalState.isStart) {
-      _ref.read(runTimeProvider.notifier).value = 0;
-
-      await globalState.updateStartTime();
-      await clashCore.startListener();
-
-      final prefs = await preferences.sharedPreferencesCompleter.future;
-      await prefs?.setBool('is_vpn_running', true);
-
-      globalState.startUpdateTasks([updateRunTime, updateTraffic]);
-
-      addCheckIpNumDebounce();
-      _backgroundLoad();
-      return;
-    }
+    final needRecovery = await _detectAbnormalExit();
 
     if (needRecovery) {
-      commonPrint.log('Handling Recovery: $recoveryReason');
-
+      commonPrint.log('Abnormal exit detected');
       try {
-        await applyProfile(silence: true);
-
-        if (system.isAndroid) {
-          final prefs = await preferences.sharedPreferencesCompleter.future;
-          await prefs?.setBool('is_vpn_running', false);
+        if (system.isDesktop) {
+          await restartCore();
+        } else {
+          await applyProfile(silence: true);
         }
       } catch (e) {
-        commonPrint.log('Recovery applyProfile failed: $e');
+        commonPrint.log('Recovery failed: $e');
       }
     }
     final shouldStart = globalState.isStart || _ref.read(appSettingProvider).autoRun;
@@ -896,104 +851,23 @@ class AppController {
       addCheckIpNumDebounce();
     }
   }
-  Future<(bool, String, bool)> _detectRecoveryReason(bool isNativeRunning) async {
-    final results = await Future.wait<dynamic>([
-      preferences.sharedPreferencesCompleter.future,
-      system.isAndroid ? app.getSelfLastUpdateTime() : Future.value(0),
-    ]);
 
-    final prefs = results[0];
-    final apkLastUpdateTime = results[1] as int;
+  Future<bool> _detectAbnormalExit() async {
+    final prefs = await preferences.sharedPreferencesCompleter.future;
 
     if (system.isAndroid) {
-      final savedApkUpdateTime = prefs?.getInt('apk_last_update_time') ?? 0;
-      bool isReinstall = false;
-      String reason = '';
-
-      if (savedApkUpdateTime != 0 && savedApkUpdateTime != apkLastUpdateTime) {
-        isReinstall = true;
-        reason = 'APK Upgrade';
-      }
-
       final isVpnRunningFlag = prefs?.getBool('is_vpn_running') ?? false;
-      
-      final isAbnormalExit = !isNativeRunning && isVpnRunningFlag && !isReinstall;
-      
-      if (isAbnormalExit) {
-        commonPrint.log('Abnormal exit detected');
-        reason = 'Abnormal exit';
-      }
-
-      if (savedApkUpdateTime != apkLastUpdateTime) {
-        prefs?.setInt('apk_last_update_time', apkLastUpdateTime);
-      }
-
-      final needRecovery = (!isNativeRunning && isReinstall) || isAbnormalExit;
-      return (needRecovery, reason, isReinstall);
+      // Abnormal exit: flag says VPN was running, but app state shows not started
+      return !globalState.isStart && isVpnRunningFlag;
     }
 
-    // Desktop logic remains the same
     if (system.isDesktop) {
-      bool needRecovery = false;
-      String reason = '';
-
       final wasTunRunning = prefs?.getBool('is_tun_running') ?? false;
-      final isTunConflict = !globalState.isStart && wasTunRunning;
-      if (isTunConflict) {
-        commonPrint.log('Desktop TUN resource conflict detected');
-        needRecovery = true;
-        reason = 'TUN resource conflict';
-      }
-
-      return (needRecovery, reason, false);
+      // Abnormal exit: flag says TUN was running, but app state shows not started
+      return !globalState.isStart && wasTunRunning;
     }
 
-    return (false, '', false);
-  }
-
-
-  Future<(bool, bool)> _readAndroidUpgradeRecoveryFlags() async {
-    final prefs = await preferences.sharedPreferencesCompleter.future;
-    final needsTunCleanup = prefs?.getBool('needs_tun_cleanup') ?? false;
-    final wasRunningBeforeUpgrade =
-        prefs?.getBool('vpn_running_before_upgrade') ?? false;
-    return (needsTunCleanup, wasRunningBeforeUpgrade);
-  }
-
-  Future<void> _recoverAndroidVpnAfterUpgrade({
-    required bool shouldRestoreVpn,
-  }) async {
-    final prefs = await preferences.sharedPreferencesCompleter.future;
-    try {
-      try {
-        await vpn_service.service?.setSmartStopped(false);
-      } catch (e) {
-        commonPrint.log('Reset smart-stopped flag failed: $e');
-      }
-
-      try {
-        await vpn_service.service?.stopVpn();
-      } catch (e) {
-        commonPrint.log('Stop stale VPN after upgrade failed: $e');
-      }
-
-      globalState.startTime = null;
-      _ref.read(runTimeProvider.notifier).value = null;
-      clashCore.resetTraffic();
-      _ref.read(trafficsProvider.notifier).clear();
-      _ref.read(totalTrafficProvider.notifier).value = Traffic();
-
-      await Future.delayed(const Duration(milliseconds: 1500));
-      await applyProfile(silence: true);
-
-      if (shouldRestoreVpn) {
-        await updateStatus(true);
-      } else {
-        addCheckIpNumDebounce();
-      }
-    } finally {
-      await prefs?.setBool('vpn_running_before_upgrade', false);
-    }
+    return false;
   }
 
   void setDelay(Delay delay) {
@@ -1206,10 +1080,10 @@ class AppController {
         );
   }
 
-  Future<List<Package>> getPackages() async {
+  Future<List<Package>> getPackages({bool forceRefresh = false}) async {
     // Remove unnecessary delay, load directly async
-    if (_ref.read(packagesProvider).isEmpty) {
-      final packages = await app.getPackages();
+    if (forceRefresh || _ref.read(packagesProvider).isEmpty) {
+      final packages = await app.getPackages(forceRefresh: forceRefresh);
       _ref.read(packagesProvider.notifier).value = packages;
     }
     return _ref.read(packagesProvider);
@@ -1329,30 +1203,30 @@ class AppController {
     );
 
     return Isolate.run<List<int>>(() async {
-      final archive = Archive();
+      // Use ZipFileEncoder like FLClash - more reliable than ZipEncoder + Archive
+      final tempDir = Directory.systemTemp;
+      final tempZipPath = join(tempDir.path, 'bettbox_backup_${DateTime.now().millisecondsSinceEpoch}.zip');
+      final encoder = ZipFileEncoder();
+      encoder.create(tempZipPath);
 
-      // Add Bettbox marker file
+      // Add marker file
       final markerData = json.encode({
         'app': 'Bettbox',
         'version': '1.0',
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       });
       final markerBytes = utf8.encode(markerData);
-      final markerFile = ArchiveFile(
-        '.bettbox_marker',
-        markerBytes.length,
-        markerBytes,
-      );
-      archive.addFile(markerFile);
+      final tempMarkerFile = File(join(tempDir.path, 'bettbox_marker_${DateTime.now().millisecondsSinceEpoch}.tmp'));
+      await tempMarkerFile.writeAsBytes(markerBytes);
+      await encoder.addFile(tempMarkerFile, '.bettbox_marker');
+      await tempMarkerFile.delete();
 
       // Add config file
-      final configBytes = utf8.encode(json.encode(configJson));
-      final configFile = ArchiveFile(
-        'config.json',
-        configBytes.length,
-        configBytes,
-      );
-      archive.addFile(configFile);
+      final configStr = json.encode(configJson);
+      final tempConfigFile = File(join(tempDir.path, 'bettbox_config_${DateTime.now().millisecondsSinceEpoch}.tmp'));
+      await tempConfigFile.writeAsString(configStr);
+      await encoder.addFile(tempConfigFile, 'config.json');
+      await tempConfigFile.delete();
 
       // Add profiles dir (valid subscriptions only)
       final profilesDir = Directory(profilesPath);
@@ -1373,13 +1247,7 @@ class AppController {
                 file.path,
                 from: homeDirPath,
               ).replaceAll('\\', '/');
-              final bytes = await file.readAsBytes();
-              final archiveFile = ArchiveFile(
-                relativePath,
-                bytes.length,
-                bytes,
-              );
-              archive.addFile(archiveFile);
+              await encoder.addFile(file, relativePath);
             }
           }
         }
@@ -1400,22 +1268,20 @@ class AppController {
                   providerFile.path,
                   from: homeDirPath,
                 ).replaceAll('\\', '/');
-                final bytes = await providerFile.readAsBytes();
-                final archiveFile = ArchiveFile(
-                  relativePath,
-                  bytes.length,
-                  bytes,
-                );
-                archive.addFile(archiveFile);
+                await encoder.addFile(providerFile, relativePath);
               }
             }
           }
         }
       }
 
-      // Encode as ZIP (same as old version)
-      final zipEncoder = ZipEncoder();
-      return zipEncoder.encode(archive) ?? [];
+      encoder.close();
+
+      // Read the zip file and return bytes
+      final zipFile = File(tempZipPath);
+      final bytes = await zipFile.readAsBytes();
+      await zipFile.delete();
+      return bytes;
     });
   }
 
@@ -1454,14 +1320,21 @@ class AppController {
       commonPrint.log('Starting recovery from file: $path');
 
       final archive = await Isolate.run<Archive>(() {
-        final input = InputFileStream(path);
         try {
+          final input = InputFileStream(path);
           final zipDecoder = ZipDecoder();
-          final archive = zipDecoder.decodeBuffer(input);
-          return archive;
-        } finally {
+          final result = zipDecoder.decodeStream(input);
           input.close();
+          if (result.files.isNotEmpty) {
+            return result;
+          }
+        } catch (e) {
+          commonPrint.log('Stream decoding failed: $e');
         }
+
+        final bytes = File(path).readAsBytesSync();
+        final zipDecoder = ZipDecoder();
+        return zipDecoder.decodeBytes(bytes);
       });
 
       commonPrint.log('Archive decoded: ${archive.files.length} files');

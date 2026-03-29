@@ -18,6 +18,7 @@ import 'application.dart';
 import 'clash/core.dart';
 import 'clash/lib.dart';
 import 'common/common.dart';
+import 'l10n/l10n.dart';
 import 'models/models.dart';
 
 const String _sentryDsn = String.fromEnvironment('SENTRY_DSN');
@@ -60,13 +61,7 @@ Future<void> main() async {
     options.enableAutoSessionTracking = true;
     options.attachStacktrace = true;
 
-    if (enableAdvancedAnalytics) {
-      options.tracesSampleRate = 0.2;
-      options.profilesSampleRate = 0.1;
-    } else {
-      options.tracesSampleRate = 0;
-      options.profilesSampleRate = 0;
-    }
+    options.tracesSampleRate = enableAdvancedAnalytics ? 0.2 : 0;
   }, appRunner: () => _runApp(version));
 }
 
@@ -111,6 +106,15 @@ Future<void> _service(List<String> flags) async {
   );
 
   vpn?.handleGetStartForegroundParams = () async {
+    if (AppLocalizations.currentOrNull == null) {
+      final locale = globalState.config.appSetting.locale?.isNotEmpty == true
+          ? utils.getLocaleForString(globalState.config.appSetting.locale!)
+          : WidgetsBinding.instance.platformDispatcher.locale;
+      if (locale != null) {
+        await AppLocalizations.load(locale);
+      }
+    }
+
     // Check if smart-stopped from native side
     final isSmartStopped = await vpn?.isSmartStopped() ?? false;
 
@@ -154,10 +158,6 @@ Future<void> _service(List<String> flags) async {
     final clashConfig = globalState.config.patchClashConfig.copyWith.tun(
       enable: false,
     );
-    
-    if (system.isAndroid) {
-      await vpn?.checkAndCleanResidualVpn();
-    }
     
     final params = await globalState.getSetupParams(pathConfig: clashConfig);
     Future(() async {

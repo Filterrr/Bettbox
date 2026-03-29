@@ -25,6 +25,8 @@ class AppLocalizations {
     return _current!;
   }
 
+  static AppLocalizations? get currentOrNull => _current;
+
   static const AppLocalizationDelegate delegate = AppLocalizationDelegate();
 
   static Future<AppLocalizations> load(Locale locale) {
@@ -329,24 +331,14 @@ class AppLocalizations {
     );
   }
 
-  /// `Core Connected`
+  /// `Connected`
   String get coreConnected {
-    return Intl.message(
-      'Core Connected',
-      name: 'coreConnected',
-      desc: '',
-      args: [],
-    );
+    return Intl.message('Connected', name: 'coreConnected', desc: '', args: []);
   }
 
-  /// `Core Suspended`
+  /// `Suspended`
   String get coreSuspended {
-    return Intl.message(
-      'Core Suspended',
-      name: 'coreSuspended',
-      desc: '',
-      args: [],
-    );
+    return Intl.message('Suspended', name: 'coreSuspended', desc: '', args: []);
   }
 
   /// `Invalid IP or CIDR format`

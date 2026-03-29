@@ -17,6 +17,7 @@ import (
 	"github.com/metacubex/mihomo/transport/vless"
 	"github.com/metacubex/mihomo/transport/vless/encryption"
 	"github.com/metacubex/mihomo/transport/vmess"
+	"github.com/metacubex/mihomo/transport/xhttp"
 
 	"github.com/metacubex/http"
 	vmessSing "github.com/metacubex/sing-vmess"
@@ -33,9 +34,7 @@ type Vless struct {
 	encryption *encryption.ClientInstance
 
 	// for gun mux
-	gunTLSConfig *tls.Config
-	gunConfig    *gun.Config
-	transport    *gun.TransportWrap
+	gunTransport *gun.Transport
 
 	realityConfig *tlsC.RealityConfig
 	echConfig     *ech.Config
@@ -62,6 +61,7 @@ type VlessOption struct {
 	HTTP2Opts         HTTP2Options      `proxy:"h2-opts,omitempty"`
 	GrpcOpts          GrpcOptions       `proxy:"grpc-opts,omitempty"`
 	WSOpts            WSOptions         `proxy:"ws-opts,omitempty"`
+	XHTTPOpts         XHTTPOptions      `proxy:"xhttp-opts,omitempty"`
 	WSHeaders         map[string]string `proxy:"ws-headers,omitempty"`
 	SkipCertVerify    bool              `proxy:"skip-cert-verify,omitempty"`
 	Fingerprint       string            `proxy:"fingerprint,omitempty"`
@@ -69,6 +69,16 @@ type VlessOption struct {
 	PrivateKey        string            `proxy:"private-key,omitempty"`
 	ServerName        string            `proxy:"servername,omitempty"`
 	ClientFingerprint string            `proxy:"client-fingerprint,omitempty"`
+}
+
+type XHTTPOptions struct {
+	Path                 string            `proxy:"path,omitempty"`
+	Host                 string            `proxy:"host,omitempty"`
+	Mode                 string            `proxy:"mode,omitempty"`
+	Headers              map[string]string `proxy:"headers,omitempty"`
+	ScMaxConcurrentPosts int               `proxy:"sc-max-concurrent-posts,omitempty"`
+	NoGRPCHeader         bool              `proxy:"no-grpc-header,omitempty"`
+	XPaddingBytes        string            `proxy:"x-padding-bytes,omitempty"`
 }
 
 func (v *Vless) StreamConnContext(ctx context.Context, c net.Conn, metadata *C.Metadata) (_ net.Conn, err error) {
@@ -151,7 +161,9 @@ func (v *Vless) StreamConnContext(ctx context.Context, c net.Conn, metadata *C.M
 
 		c, err = vmess.StreamH2Conn(ctx, c, h2Opts)
 	case "grpc":
-		c, err = gun.StreamGunWithConn(c, v.gunTLSConfig, v.gunConfig, v.echConfig, v.realityConfig)
+		break // already handle in gun transport
+	case "xhttp":
+		break // already handle in dialXHTTPConn
 	default:
 		// default tcp network
 		// handle TLS
@@ -230,27 +242,85 @@ func (v *Vless) streamTLSConn(ctx context.Context, conn net.Conn, isH2 bool) (ne
 	return conn, nil
 }
 
+func (v *Vless) dialXHTTPConn(ctx context.Context) (net.Conn, error) {
+	requestHost := v.option.XHTTPOpts.Host
+	if requestHost == "" {
+		if v.option.ServerName != "" {
+			requestHost = v.option.ServerName
+		} else {
+			requestHost = v.option.Server
+		}
+	}
+
+	cfg := &xhttp.Config{
+		Host:          requestHost,
+		Path:          v.option.XHTTPOpts.Path,
+		Mode:          v.option.XHTTPOpts.Mode,
+		Headers:       v.option.XHTTPOpts.Headers,
+		NoGRPCHeader:  v.option.XHTTPOpts.NoGRPCHeader,
+		XPaddingBytes: v.option.XHTTPOpts.XPaddingBytes,
+	}
+
+	mode := cfg.EffectiveMode(v.realityConfig != nil)
+
+	switch mode {
+	case "stream-one":
+		return xhttp.DialStreamOne(
+			ctx,
+			v.option.Server,
+			v.option.Port,
+			cfg,
+			func(ctx context.Context) (net.Conn, error) {
+				return v.dialer.DialContext(ctx, "tcp", v.addr)
+			},
+			func(ctx context.Context, raw net.Conn, isH2 bool) (net.Conn, error) {
+				return v.streamTLSConn(ctx, raw, isH2)
+			},
+		)
+	case "packet-up":
+		return xhttp.DialPacketUp(
+			ctx,
+			v.option.Server,
+			v.option.Port,
+			cfg,
+			func(ctx context.Context) (net.Conn, error) {
+				return v.dialer.DialContext(ctx, "tcp", v.addr)
+			},
+			func(ctx context.Context, raw net.Conn, isH2 bool) (net.Conn, error) {
+				return v.streamTLSConn(ctx, raw, isH2)
+			},
+		)
+	default:
+		return nil, fmt.Errorf("xhttp mode %s is not implemented yet", mode)
+	}
+}
+
 // DialContext implements C.ProxyAdapter
 func (v *Vless) DialContext(ctx context.Context, metadata *C.Metadata) (_ C.Conn, err error) {
-	var c net.Conn
-	// gun transport
-	if v.transport != nil {
-		c, err = gun.StreamGunWithTransport(v.transport, v.gunConfig)
+	if v.option.Network == "xhttp" {
+		c, err := v.dialXHTTPConn(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s connect error: %s", v.addr, err.Error())
 		}
-		defer func(c net.Conn) {
-			safeConnClose(c, err)
-		}(c)
 
 		c, err = v.streamConnContext(ctx, c, metadata)
 		if err != nil {
-			return nil, err
+			safeConnClose(c, err)
+			return nil, fmt.Errorf("%s connect error: %s", v.addr, err.Error())
 		}
 
 		return NewConn(c, v), nil
 	}
-	c, err = v.dialer.DialContext(ctx, "tcp", v.addr)
+
+	var c net.Conn
+	switch v.option.Network {
+	case "xhttp":
+		c, err = v.dialXHTTPConn(ctx)
+	case "grpc": // gun transport
+		c, err = v.gunTransport.Dial()
+	default:
+		c, err = v.dialer.DialContext(ctx, "tcp", v.addr)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %s", v.addr, err.Error())
 	}
@@ -270,30 +340,16 @@ func (v *Vless) ListenPacketContext(ctx context.Context, metadata *C.Metadata) (
 	if err = v.ResolveUDP(ctx, metadata); err != nil {
 		return nil, err
 	}
+
 	var c net.Conn
-	// gun transport
-	if v.transport != nil {
-		c, err = gun.StreamGunWithTransport(v.transport, v.gunConfig)
-		if err != nil {
-			return nil, err
-		}
-		defer func(c net.Conn) {
-			safeConnClose(c, err)
-		}(c)
-
-		c, err = v.streamConnContext(ctx, c, metadata)
-		if err != nil {
-			return nil, fmt.Errorf("new vless client error: %v", err)
-		}
-
-		return v.ListenPacketOnStreamConn(ctx, c, metadata)
+	switch v.option.Network {
+	case "xhttp":
+		c, err = v.dialXHTTPConn(ctx)
+	case "grpc": // gun transport
+		c, err = v.gunTransport.Dial()
+	default:
+		c, err = v.dialer.DialContext(ctx, "tcp", v.addr)
 	}
-
-	if err = v.ResolveUDP(ctx, metadata); err != nil {
-		return nil, err
-	}
-
-	c, err = v.dialer.DialContext(ctx, "tcp", v.addr)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %s", v.addr, err.Error())
 	}
@@ -348,8 +404,8 @@ func (v *Vless) ProxyInfo() C.ProxyInfo {
 
 // Close implements C.ProxyAdapter
 func (v *Vless) Close() error {
-	if v.transport != nil {
-		return v.transport.Close()
+	if v.gunTransport != nil {
+		return v.gunTransport.Close()
 	}
 	return nil
 }
@@ -461,38 +517,34 @@ func NewVless(option VlessOption) (*Vless, error) {
 		}
 
 		gunConfig := &gun.Config{
-			ServiceName:       v.option.GrpcOpts.GrpcServiceName,
-			UserAgent:         v.option.GrpcOpts.GrpcUserAgent,
-			Host:              v.option.ServerName,
-			ClientFingerprint: v.option.ClientFingerprint,
+			ServiceName:  option.GrpcOpts.GrpcServiceName,
+			UserAgent:    option.GrpcOpts.GrpcUserAgent,
+			Host:         option.ServerName,
+			PingInterval: option.GrpcOpts.PingInterval,
 		}
 		if option.ServerName == "" {
 			gunConfig.Host = v.addr
 		}
-		var tlsConfig *tls.Config
+		var tlsConfig *vmess.TLSConfig
 		if option.TLS {
-			tlsConfig, err = ca.GetTLSConfig(ca.Option{
-				TLSConfig: &tls.Config{
-					InsecureSkipVerify: v.option.SkipCertVerify,
-					ServerName:         v.option.ServerName,
-				},
-				Fingerprint: v.option.Fingerprint,
-				Certificate: v.option.Certificate,
-				PrivateKey:  v.option.PrivateKey,
-			})
-			if err != nil {
-				return nil, err
+			tlsConfig = &vmess.TLSConfig{
+				Host:              option.ServerName,
+				SkipCertVerify:    option.SkipCertVerify,
+				FingerPrint:       option.Fingerprint,
+				Certificate:       option.Certificate,
+				PrivateKey:        option.PrivateKey,
+				ClientFingerprint: option.ClientFingerprint,
+				NextProtos:        []string{"h2"},
+				ECH:               v.echConfig,
+				Reality:           v.realityConfig,
 			}
 			if option.ServerName == "" {
 				host, _, _ := net.SplitHostPort(v.addr)
-				tlsConfig.ServerName = host
+				tlsConfig.Host = host
 			}
 		}
 
-		v.gunTLSConfig = tlsConfig
-		v.gunConfig = gunConfig
-
-		v.transport = gun.NewHTTP2Client(dialFn, tlsConfig, v.option.ClientFingerprint, v.echConfig, v.realityConfig)
+		v.gunTransport = gun.NewTransport(dialFn, tlsConfig, gunConfig)
 	}
 
 	return v, nil

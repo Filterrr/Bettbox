@@ -9,6 +9,7 @@ import 'package:bett_box/clash/clash.dart';
 import 'package:bett_box/common/theme.dart';
 import 'package:bett_box/enum/enum.dart';
 import 'package:bett_box/l10n/l10n.dart';
+import 'package:bett_box/plugins/app.dart';
 import 'package:bett_box/plugins/service.dart';
 import 'package:bett_box/providers/state.dart' as providers_state;
 import 'package:bett_box/widgets/dialog.dart';
@@ -49,6 +50,7 @@ class GlobalState {
   UpdateTasks tasks = [];
   final navigatorKey = GlobalKey<NavigatorState>();
   AppController? _appController;
+  bool? _isAndroidTV;
 
   // Config rollback: backup last successful config params
   SetupParams? _lastSuccessfulSetupParams;
@@ -107,12 +109,17 @@ class GlobalState {
       utils.getLocaleForString(config.appSetting.locale) ??
           WidgetsBinding.instance.platformDispatcher.locale,
     );
+    if (system.isAndroid) {
+      _isAndroidTV = await app.isAndroidTV();
+    }
   }
+
+  bool get isAndroidTV => _isAndroidTV ?? false;
 
   String get ua => config.patchClashConfig.globalUa ?? packageInfo.ua;
 
   Future<void> startUpdateTasks([UpdateTasks? tasks]) async {
-    if (timer != null && timer!.isActive == true) return;
+    if (timer?.isActive == true) return;
     if (tasks != null) {
       this.tasks = tasks;
     }
@@ -130,7 +137,7 @@ class GlobalState {
   }
 
   void stopUpdateTasks() {
-    if (timer == null || timer?.isActive == false) return;
+    if (timer?.isActive != true) return;
     timer?.cancel();
     timer = null;
   }
@@ -271,13 +278,9 @@ class GlobalState {
     );
   }
 
-  void showNotifier(String text,
-      {VoidCallback? onAction, String? actionLabel}) {
-    if (text.isEmpty) {
-      return;
-    }
-    navigatorKey.currentContext
-        ?.showNotifier(text, onAction: onAction, actionLabel: actionLabel);
+  void showNotifier(String text, {VoidCallback? onAction, String? actionLabel}) {
+    if (text.isEmpty) return;
+    navigatorKey.currentContext?.showNotifier(text, onAction: onAction, actionLabel: actionLabel);
   }
 
   Future<void> openUrl(String url, {bool needConfirm = false}) async {

@@ -25,18 +25,13 @@ class Vpn {
         case 'closeConnections':
           clashCore.closeConnections();
         case 'getStartForegroundParams':
-          if (handleGetStartForegroundParams != null) {
-            return await handleGetStartForegroundParams!();
-          }
-          return '';
+          return handleGetStartForegroundParams?.call() ?? '';
         case 'status':
           return clashLibHandler?.getRunTime() != null;
         default:
           for (final VpnListener listener in _listeners) {
-            switch (call.method) {
-              case 'dnsChanged':
-                final dns = call.arguments as String;
-                listener.onDnsChanged(dns);
+            if (call.method == 'dnsChanged') {
+              listener.onDnsChanged(call.arguments as String);
             }
           }
       }
@@ -91,14 +86,6 @@ class Vpn {
     return await methodChannel.invokeMethod<bool>('smartResume', {
       'data': json.encode(options),
     });
-  }
-
-  /// Check if there is a residual zombie TUN interface.
-  Future<bool> isZombieTunAlive() async {
-    return await methodChannel.invokeMethod<bool>('isZombieTunAlive') ?? false;
-  }
-  Future<bool> checkAndCleanResidualVpn() async {
-    return await methodChannel.invokeMethod<bool>('checkAndCleanResidualVpn') ?? false;
   }
 
   /// Check if the VPN native thread/service is currently running

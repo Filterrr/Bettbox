@@ -351,6 +351,7 @@ func loadProvider[T P.Provider](providers map[string]T) {
 			load(pv)
 		}()
 	}
+	wg.Wait()
 }
 
 func updateSniffer(snifferConfig *sniffer.Config) {
@@ -465,6 +466,12 @@ func patchSelectGroup(proxies map[string]C.Proxy) {
 
 		selected, exist := mapping[name]
 		if !exist {
+			continue
+		}
+
+		if outbound.Type() == C.URLTest {
+			cachefile.Cache().SetSelected(name, "")
+			selector.ForceSet("")
 			continue
 		}
 
