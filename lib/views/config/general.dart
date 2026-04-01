@@ -38,28 +38,143 @@ class LogLevelItem extends ConsumerWidget {
   }
 }
 
-class UaItem extends ConsumerWidget {
+class UaItem extends ConsumerStatefulWidget {
   const UaItem({super.key});
 
   @override
-  Widget build(BuildContext context, ref) {
+  ConsumerState<UaItem> createState() => _UaItemState();
+}
+
+class _UaItemState extends ConsumerState<UaItem> {
+  String _lastCustomUa = '';
+
+  @override
+  Widget build(BuildContext context) {
     final globalUa = ref.watch(
       patchClashConfigProvider.select((state) => state.globalUa),
     );
-    return ListItem<String?>.options(
+    final isCustom = globalUa != null;
+
+    if (isCustom) {
+      _lastCustomUa = globalUa;
+    }
+
+    return ListItem(
       leading: const Icon(Icons.computer_outlined),
       title: const Text('UA'),
-      subtitle: Text(globalUa ?? appLocalizations.defaultText),
-      delegate: OptionsDelegate<String?>(
-        title: 'UA',
-        options: [null],
-        value: globalUa,
-        onChanged: (value) {
-          ref
-              .read(patchClashConfigProvider.notifier)
-              .updateState((state) => state.copyWith(globalUa: value));
-        },
-        textBuilder: (ua) => ua ?? appLocalizations.defaultText,
+      subtitle: Text(isCustom ? appLocalizations.custom : appLocalizations.defaultText),
+      onTap: () async {
+        final notifier = ref.read(patchClashConfigProvider.notifier);
+        final result = await globalState.showCommonDialog<_UaOption>(
+          child: _UaDialog(isCustom: isCustom),
+        );
+
+        if (result == null) return;
+
+        switch (result.type) {
+          case _UaOptionType.default_:
+            notifier.updateState((state) => state.copyWith(globalUa: null));
+          case _UaOptionType.custom:
+            final customUa = await globalState.showCommonDialog<String>(
+              child: InputDialog(
+                title: appLocalizations.custom,
+                value: _lastCustomUa,
+                hintText: 'Clash.Meta',
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return appLocalizations.emptyTip('UA');
+                  }
+                  return null;
+                },
+              ),
+            );
+            if (customUa != null && customUa.trim().isNotEmpty) {
+              notifier.updateState((state) => state.copyWith(globalUa: customUa.trim()));
+            }
+        }
+      },
+    );
+  }
+}
+
+enum _UaOptionType { default_, custom }
+
+class _UaOption {
+  final _UaOptionType type;
+
+  const _UaOption(this.type);
+}
+
+class _UaDialog extends StatelessWidget {
+  final bool isCustom;
+
+  const _UaDialog({required this.isCustom});
+
+  @override
+  Widget build(BuildContext context) {
+    return CommonDialog(
+      title: 'UA',
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Default option
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.of(context, rootNavigator: true).pop(const _UaOption(_UaOptionType.default_));
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      !isCustom ? Icons.check_circle_rounded : Icons.circle_outlined,
+                      size: 21,
+                      color: !isCustom
+                          ? context.colorScheme.primary
+                          : context.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      appLocalizations.defaultText,
+                      style: context.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Custom option
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.of(context, rootNavigator: true).pop(const _UaOption(_UaOptionType.custom));
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      isCustom ? Icons.check_circle_rounded : Icons.circle_outlined,
+                      size: 21,
+                      color: isCustom
+                          ? context.colorScheme.primary
+                          : context.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      appLocalizations.custom,
+                      style: context.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -176,11 +291,16 @@ class _TestUrlDialog extends ConsumerWidget {
             return Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: () {
+                onTap: () async {
                   ref
                       .read(appSettingProvider.notifier)
                       .updateState((state) => state.copyWith(testUrl: url));
-                  Navigator.of(context, rootNavigator: true).pop();
+                  if (ref.read(overrideTestUrlProvider)) {
+                    await globalState.appController.updateClashConfigDebounce();
+                  }
+                  if (context.mounted) {
+                    Navigator.of(context, rootNavigator: true).pop();
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -249,6 +369,9 @@ class _TestUrlDialog extends ConsumerWidget {
 
                 if (customUrl != null) {
                   notifier.updateState((state) => state.copyWith(testUrl: customUrl));
+                  if (ref.read(overrideTestUrlProvider)) {
+                    await globalState.appController.updateClashConfigDebounce();
+                  }
                 }
               },
               child: Container(

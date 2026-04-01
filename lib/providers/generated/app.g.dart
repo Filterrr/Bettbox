@@ -23,7 +23,7 @@ final viewWidthProvider = AutoDisposeProvider<double>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ViewWidthRef = AutoDisposeProviderRef<double>;
-String _$viewModeHash() => r'736e2acc7e7d98ee30132de1990bf85f9506b47a';
+String _$viewModeHash() => r'72c09e2e81bd930b7842fa78b8cf2376fd2b72c0';
 
 /// See also [viewMode].
 @ProviderFor(viewMode)
@@ -40,7 +40,7 @@ final viewModeProvider = AutoDisposeProvider<ViewMode>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ViewModeRef = AutoDisposeProviderRef<ViewMode>;
-String _$isMobileViewHash() => r'554c9ed269a02af001e623e596622e2bb2d658e7';
+String _$isMobileViewHash() => r'110d5cbf01a55981c95a434c796600757118ec79';
 
 /// See also [isMobileView].
 @ProviderFor(isMobileView)
@@ -90,7 +90,7 @@ final realTunEnableProvider =
     );
 
 typedef _$RealTunEnable = AutoDisposeNotifier<bool>;
-String _$logsHash() => r'2b5cca7a2dfd87ca16856dbd64eeaca331189dea';
+String _$logsHash() => r'87cb2e7f7ba8c33f417f7cd9e7e5413f63821b4c';
 
 /// See also [Logs].
 @ProviderFor(Logs)
@@ -105,7 +105,7 @@ final logsProvider = AutoDisposeNotifierProvider<Logs, FixedList<Log>>.internal(
 );
 
 typedef _$Logs = AutoDisposeNotifier<FixedList<Log>>;
-String _$requestsHash() => r'401daa793d1f8fef55932c6b313b6781604ab98d';
+String _$requestsHash() => r'189635f139a05d1d3e8a23350386bba666badea4';
 
 /// See also [Requests].
 @ProviderFor(Requests)

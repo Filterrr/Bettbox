@@ -80,7 +80,6 @@ class _WindowContainerState extends ConsumerState<WindowManager>
   @override
   void onWindowClose() async {
     await globalState.appController.handleBackOrExit();
-    // 不调用 super.onWindowClose()，因为 handleBackOrExit 已经处理了窗口关闭逻辑
   }
 
   @override
@@ -126,14 +125,16 @@ class _WindowContainerState extends ConsumerState<WindowManager>
   @override
   void onWindowMinimize() async {
     globalState.appController.savePreferencesDebounce();
-    _scheduleRenderToggle(false);
-    globalState.stopUpdateTasks();
+    _renderToggleTimer?.cancel();
+    await globalState.handleBackground();
     super.onWindowMinimize();
   }
 
   @override
   void onWindowRestore() {
+    globalState.handleForeground();
     _scheduleRenderToggle(true);
+    unawaited(globalState.appController.syncWakelockIfNeeded());
     if (globalState.isStart) {
       globalState.startUpdateTasks([
         globalState.appController.updateRunTime,

@@ -76,7 +76,9 @@ class Window {
   }
 
   Future<void> show() async {
+    globalState.handleForeground();
     render?.resume();
+    await globalState.appController.syncWakelockIfNeeded();
     await windowManager.show();
     await windowManager.focus();
     await windowManager.setSkipTaskbar(false);
@@ -98,7 +100,7 @@ class Window {
   }
 
   Future<void> hide() async {
-    render?.pause();
+    await globalState.handleBackground();
     await windowManager.hide();
     await windowManager.setSkipTaskbar(true);
   }

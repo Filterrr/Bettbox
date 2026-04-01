@@ -170,7 +170,7 @@
   "project": "Project",
   "core": "Core",
   "tabAnimation": "Tab Animation",
-  "desc": "A beautiful, easy-to-use, ad-free Mihomo-based proxy client.",
+  "desc": "Bettbox is based on the powerful and flexible Mihomo (Clash.Meta) proxy kernel, dedicated to a superior user experience. Forked from FlClash: Better Experience, Out of the box",
   "startVpn": "Starting...",
   "stopVpn": "Stopping...",
   "discovery": "New Version Found",

@@ -118,6 +118,7 @@ abstract class ProxyGroup with _$ProxyGroup {
     @JsonKey(name: 'expected-status') dynamic expectedStatus,
     @JsonKey(fromJson: _parseBool) bool? hidden,
     String? icon,
+    @JsonKey(fromJson: _parseInt) int? tolerance,
   }) = _ProxyGroup;
 
   factory ProxyGroup.fromJson(Map<String, Object?> json) =>
@@ -278,6 +279,10 @@ abstract class Tun with _$Tun {
     @Default(TunStack.system) TunStack stack,
     @JsonKey(name: 'dns-hijack') @Default(['any:53']) List<String> dnsHijack,
     @JsonKey(name: 'route-address') @Default([]) List<String> routeAddress,
+    @JsonKey(name: 'route-exclude-address')
+    @Default([])
+    List<String> routeExcludeAddress,
+    @JsonKey(name: 'strict-route') @Default(false) bool strictRoute,
     @JsonKey(name: 'disable-icmp-forwarding')
     @Default(true)
     bool disableIcmpForwarding,
@@ -335,13 +340,38 @@ extension TunExt on Tun {
     final mRouteAddress = routeMode == RouteMode.bypassPrivate
         ? buildBypassPrivateRouteAddress()
         : routeAddress;
-    return switch (system.isDesktop) {
-      true => copyWith(autoRoute: true, routeAddress: []),
-      false => copyWith(
-        autoRoute: mRouteAddress.isEmpty ? true : false,
-        routeAddress: mRouteAddress,
-      ),
-    };
+
+    if (system.isDesktop) {
+      if (routeMode == RouteMode.bypassPrivate) {
+        return copyWith(
+          autoRoute: true,
+          strictRoute: !system.isWindows,
+          routeAddress: [],
+          routeExcludeAddress: [
+            '127.0.0.0/8',
+            '::1/128',
+            '10.0.0.0/8',
+            '172.16.0.0/12',
+            '192.168.0.0/16',
+            '169.254.0.0/16',
+            'fd00::/8',
+            'fe80::/10',
+          ],
+        );
+      }
+      return copyWith(
+        autoRoute: true,
+        strictRoute: !system.isWindows,
+        routeAddress: [],
+        routeExcludeAddress: [],
+      );
+    }
+
+    return copyWith(
+      autoRoute: mRouteAddress.isEmpty ? true : false,
+      strictRoute: true,
+      routeAddress: mRouteAddress,
+    );
   }
 }
 

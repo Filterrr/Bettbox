@@ -244,6 +244,17 @@ class ProxiesTabViewState extends ConsumerState<ProxiesTabView>
                     overlayColor: const WidgetStatePropertyAll(
                       Colors.transparent,
                     ),
+                    indicatorColor: globalState.isAndroidTV
+                        ? (Theme.of(context).brightness == Brightness.light
+                            ? Colors.black
+                            : Colors.white)
+                        : context.colorScheme.primary,
+                    labelColor: globalState.isAndroidTV
+                        ? (Theme.of(context).brightness == Brightness.light
+                            ? Colors.black
+                            : Colors.white)
+                        : context.colorScheme.primary,
+                    unselectedLabelColor: context.colorScheme.onSurfaceVariant,
                     tabs: [
                       for (final group in groups)
                         Tab(child: EmojiText(group.name)),
@@ -360,6 +371,7 @@ class _ProxyGroupViewState extends ConsumerState<ProxyGroupView> {
         child: GridView.builder(
           key: _getPageStorageKey(),
           controller: _controller,
+          cacheExtent: 500,
           padding: const EdgeInsets.only(
             top: 16,
             left: 16,

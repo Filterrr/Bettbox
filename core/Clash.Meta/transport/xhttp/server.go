@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/metacubex/mihomo/common/httputils"
 	N "github.com/metacubex/mihomo/common/net"
 
 	"github.com/metacubex/http"
@@ -194,7 +195,7 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writer: httpSC,
 			reader: httpSC,
 		}
-		conn.SetAddrFromRequest(r)
+		httputils.SetAddrFromRequest(&conn.NetAddr, r)
 
 		go h.connHandler(N.NewDeadlineConn(conn))
 
@@ -228,7 +229,7 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.deleteSession(sessionID)
 			},
 		}
-		conn.SetAddrFromRequest(r)
+		httputils.SetAddrFromRequest(&conn.NetAddr, r)
 
 		go h.connHandler(N.NewDeadlineConn(conn))
 
@@ -238,6 +239,45 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		_ = conn.Close()
+		return
+	}
+
+	// stream-up upload: POST /path/{session}
+	if r.Method == http.MethodPost && len(parts) == 1 {
+		sessionID := parts[0]
+		session := h.getSession(sessionID)
+		if session == nil {
+			http.Error(w, "unknown xhttp session", http.StatusBadRequest)
+			return
+		}
+
+		buf := make([]byte, 32*1024)
+		var seq uint64
+
+		for {
+			n, err := r.Body.Read(buf)
+			if n > 0 {
+				if pushErr := session.uploadQueue.Push(Packet{
+					Seq:     seq,
+					Payload: buf[:n],
+				}); pushErr != nil {
+					http.Error(w, pushErr.Error(), http.StatusInternalServerError)
+					return
+				}
+				seq++
+			}
+
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 

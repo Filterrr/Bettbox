@@ -136,13 +136,15 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
   @override
   Future<void> didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
       globalState.appController.savePreferences();
-      render?.pause();
-      globalState.stopUpdateTasks();
-    } else {
+      await globalState.handleBackground();
+    } else if (state == AppLifecycleState.resumed) {
+      globalState.handleForeground();
       render?.active();
-      if (state == AppLifecycleState.resumed && globalState.isStart) {
+      await globalState.appController.syncWakelockIfNeeded();
+      if (globalState.isStart) {
         await globalState.startUpdateTasks();
       }
     }
@@ -264,7 +266,7 @@ class AppSidebarContainer extends ConsumerWidget {
                 child: Column(
                   children: [
                     if (system.isMacOS) const SizedBox(height: 22),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 16),
                     if (!system.isMacOS) ...[const AppIcon(), const SizedBox(height: 12)],
                     Expanded(
                       child: ScrollConfiguration(

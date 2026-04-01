@@ -49,28 +49,56 @@ class ApplicationState extends ConsumerState<Application>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _autoUpdateGroupTask();
-    _autoUpdateProfilesTask();
+    globalState.backgroundMode.addListener(_syncAutoUpdateTasks);
+    _syncAutoUpdateTasks();
     globalState.appController = AppController(context, ref);
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
-      final currentContext = globalState.navigatorKey.currentContext;
-      if (currentContext != null) {
-        globalState.appController = AppController(currentContext, ref);
-      }
-      await globalState.appController.init();
-      globalState.appController.initLink();
-      if (system.isAndroid) {
-        app.initShortcuts();
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_initApp());
     });
+  }
+
+  bool get _isForeground {
+    final lifecycleState = WidgetsBinding.instance.lifecycleState;
+    return lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
+  }
+
+  Future<void> _initApp() async {
+    final currentContext = globalState.navigatorKey.currentContext;
+    if (currentContext != null && currentContext != context) {
+      globalState.appController = AppController(currentContext, ref);
+    }
+    await globalState.appController.init();
+    globalState.appController.initLink();
+    if (system.isAndroid) {
+      app.initShortcuts();
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed &&
-        system.isAndroid &&
-        globalState.config.appSetting.enableHighRefreshRate) {
-      _restoreHighRefreshRate();
+    _syncAutoUpdateTasks();
+    if (state == AppLifecycleState.resumed) {
+      if (system.isAndroid &&
+          globalState.config.appSetting.enableHighRefreshRate) {
+        _restoreHighRefreshRate();
+      }
+    }
+  }
+
+  void _syncAutoUpdateTasks() {
+    final shouldRun = _isForeground && !globalState.backgroundMode.value;
+    if (!shouldRun) {
+      _autoUpdateGroupTaskTimer?.cancel();
+      _autoUpdateGroupTaskTimer = null;
+      _autoUpdateProfilesTaskTimer?.cancel();
+      _autoUpdateProfilesTaskTimer = null;
+      return;
+    }
+    if (_autoUpdateGroupTaskTimer == null) {
+      _autoUpdateGroupTask();
+    }
+    if (_autoUpdateProfilesTaskTimer == null) {
+      _autoUpdateProfilesTask();
     }
   }
 
@@ -83,19 +111,17 @@ class ApplicationState extends ConsumerState<Application>
   }
 
   void _autoUpdateGroupTask() {
-    _autoUpdateGroupTaskTimer = Timer(const Duration(milliseconds: 20000), () {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        globalState.appController.updateGroupsDebounce();
-        _autoUpdateGroupTask();
-      });
-    });
+    _autoUpdateGroupTaskTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => globalState.appController.updateGroupsDebounce(),
+    );
   }
 
   void _autoUpdateProfilesTask() {
-    _autoUpdateProfilesTaskTimer = Timer(const Duration(minutes: 20), () async {
-      await globalState.appController.autoUpdateProfiles();
-      _autoUpdateProfilesTask();
-    });
+    _autoUpdateProfilesTaskTimer = Timer.periodic(
+      const Duration(minutes: 20),
+      (_) => unawaited(globalState.appController.autoUpdateProfiles()),
+    );
   }
 
   Widget _buildPlatformState(Widget child) {
@@ -202,14 +228,15 @@ class ApplicationState extends ConsumerState<Application>
   }
 
   @override
-  Future<void> dispose() async {
+  void dispose() {
+    globalState.backgroundMode.removeListener(_syncAutoUpdateTasks);
     WidgetsBinding.instance.removeObserver(this);
     linkManager.destroy();
     _autoUpdateGroupTaskTimer?.cancel();
     _autoUpdateProfilesTaskTimer?.cancel();
-    await clashCore.destroy();
-    await globalState.appController.savePreferences();
-    await globalState.appController.handleExit();
+    unawaited(clashCore.destroy());
+    unawaited(globalState.appController.savePreferences());
+    unawaited(globalState.appController.handleExit());
     super.dispose();
   }
 }

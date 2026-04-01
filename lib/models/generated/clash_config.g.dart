@@ -22,6 +22,7 @@ _ProxyGroup _$ProxyGroupFromJson(Map<String, dynamic> json) => _ProxyGroup(
   expectedStatus: json['expected-status'],
   hidden: _parseBool(json['hidden']),
   icon: json['icon'] as String?,
+  tolerance: _parseInt(json['tolerance']),
 );
 
 Map<String, dynamic> _$ProxyGroupToJson(_ProxyGroup instance) =>
@@ -41,6 +42,7 @@ Map<String, dynamic> _$ProxyGroupToJson(_ProxyGroup instance) =>
       'expected-status': instance.expectedStatus,
       'hidden': instance.hidden,
       'icon': instance.icon,
+      'tolerance': instance.tolerance,
     };
 
 const _$GroupTypeEnumMap = {
@@ -48,7 +50,6 @@ const _$GroupTypeEnumMap = {
   GroupType.URLTest: 'URLTest',
   GroupType.Fallback: 'Fallback',
   GroupType.LoadBalance: 'LoadBalance',
-  GroupType.Relay: 'Relay',
 };
 
 _RuleProvider _$RuleProviderFromJson(Map<String, dynamic> json) =>
@@ -180,6 +181,12 @@ _Tun _$TunFromJson(Map<String, dynamic> json) => _Tun(
           ?.map((e) => e as String)
           .toList() ??
       const [],
+  routeExcludeAddress:
+      (json['route-exclude-address'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const [],
+  strictRoute: json['strict-route'] as bool? ?? false,
   disableIcmpForwarding: json['disable-icmp-forwarding'] as bool? ?? true,
   mtu: (json['mtu'] as num?)?.toInt() ?? 4064,
 );
@@ -191,6 +198,8 @@ Map<String, dynamic> _$TunToJson(_Tun instance) => <String, dynamic>{
   'stack': _$TunStackEnumMap[instance.stack]!,
   'dns-hijack': instance.dnsHijack,
   'route-address': instance.routeAddress,
+  'route-exclude-address': instance.routeExcludeAddress,
+  'strict-route': instance.strictRoute,
   'disable-icmp-forwarding': instance.disableIcmpForwarding,
   'mtu': instance.mtu,
 };
