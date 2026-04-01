@@ -9,7 +9,7 @@ class ClashMessage {
 
   ClashMessage._() {
     controller.stream.listen((message) {
-      if (message.isEmpty) return;
+      if (message.isEmpty || _listeners.isEmpty) return;
       final m = AppMessage.fromJson(message);
       for (final AppMessageListener listener in _listeners) {
         switch (m.type) {

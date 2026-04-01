@@ -142,6 +142,7 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
       await globalState.handleBackground();
     } else if (state == AppLifecycleState.resumed) {
       globalState.handleForeground();
+      await globalState.resumeForegroundServices();
       render?.active();
       await globalState.appController.syncWakelockIfNeeded();
       if (globalState.isStart) {

@@ -77,6 +77,7 @@ class Window {
 
   Future<void> show() async {
     globalState.handleForeground();
+    await globalState.resumeForegroundServices();
     render?.resume();
     await globalState.appController.syncWakelockIfNeeded();
     await windowManager.show();

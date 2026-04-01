@@ -53,6 +53,7 @@ class GlobalState {
   bool _isExecutingTasks = false;
   bool _needsTaskRestart = false;
   DateTime? _lastBackgroundCleanupAt;
+  bool _desktopListenerSuspended = false;
 
   SetupParams? _lastSuccessfulSetupParams;
 
@@ -174,6 +175,23 @@ class GlobalState {
     render?.pause();
     stopUpdateTasks();
     dashboardRefreshManager.stop();
+    detectionState.handleBackground();
+    if (system.isDesktop) {
+      appController.compactBackgroundTransientState();
+      if (!_desktopListenerSuspended) {
+        try {
+          await clashCore.stopListener();
+          _desktopListenerSuspended = true;
+        } catch (e) {
+          commonPrint.log('Failed to suspend desktop listener: $e');
+        }
+      }
+      try {
+        clashCore.stopLog();
+      } catch (e) {
+        commonPrint.log('Failed to stop log stream: $e');
+      }
+    }
     await cleanupBackgroundResources();
   }
 
@@ -182,6 +200,31 @@ class GlobalState {
       return;
     }
     backgroundMode.value = false;
+  }
+
+  Future<void> resumeForegroundServices() async {
+    if (!system.isDesktop || !_desktopListenerSuspended) {
+      return;
+    }
+    final coreReady = await clashCore.isInit;
+    if (!coreReady) {
+      _desktopListenerSuspended = false;
+      return;
+    }
+    try {
+      await clashCore.startListener();
+      _desktopListenerSuspended = false;
+    } catch (e) {
+      commonPrint.log('Failed to resume desktop listener: $e');
+      return;
+    }
+    if (config.appSetting.openLogs) {
+      try {
+        clashCore.startLog();
+      } catch (e) {
+        commonPrint.log('Failed to resume log stream: $e');
+      }
+    }
   }
 
   Future<void> cleanupBackgroundResources() async {
@@ -195,11 +238,19 @@ class GlobalState {
     final imageCache = PaintingBinding.instance.imageCache;
     imageCache.clearLiveImages();
     WidgetsBinding.instance.handleMemoryPressure();
+    if (system.isDesktop) {
+      try {
+        await clashCore.requestGc();
+      } catch (e) {
+        commonPrint.log('Failed to request core gc: $e');
+      }
+    }
   }
 
   Future<void> handleStart([UpdateTasks? tasks]) async {
     startTime ??= DateTime.now();
     await clashCore.startListener();
+    _desktopListenerSuspended = false;
     await service?.startVpn();
     final prefs = await preferences.sharedPreferencesCompleter.future;
     await prefs?.setBool('is_vpn_running', true);
@@ -238,6 +289,7 @@ class GlobalState {
   Future handleStop() async {
     startTime = null;
     await clashCore.stopListener();
+    _desktopListenerSuspended = false;
     await service?.stopVpn();
     final prefs = await preferences.sharedPreferencesCompleter.future;
     await prefs?.setBool('is_vpn_running', false);
@@ -846,6 +898,7 @@ class DetectionState {
     final appState = globalState.appState;
     if (!appState.isInit) return;
     if (appState.pageLabel != PageLabel.dashboard) return;
+    if (globalState.backgroundMode.value) return;
 
     final delay = _isFirstLaunch
         ? const Duration(milliseconds: 500)
@@ -859,6 +912,14 @@ class DetectionState {
         state.value.ipInfo == null &&
         (_preIsStart == null || state.value.errorMessage != null)) {
       startCheck();
+    }
+  }
+
+  void handleBackground() {
+    _cancelPreviousRequest();
+    _requestId++;
+    if (state.value.isLoading) {
+      state.value = state.value.copyWith(isLoading: false);
     }
   }
 
@@ -898,6 +959,7 @@ class DetectionState {
 
     if (!appState.isInit) return;
     if (appState.pageLabel != PageLabel.dashboard) return;
+    if (globalState.backgroundMode.value) return;
 
     final isStart = appState.runTime != null;
 

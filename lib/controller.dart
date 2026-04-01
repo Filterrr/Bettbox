@@ -27,6 +27,9 @@ import 'models/models.dart';
 import 'views/profiles/override_profile.dart';
 
 class AppController {
+  static const _backgroundRetainedLogs = 64;
+  static const _backgroundRetainedRequests = 64;
+
   int? lastProfileModified;
 
   final BuildContext context;
@@ -68,6 +71,38 @@ class AppController {
 
   void savePreferencesDebounce() {
     debouncer.call(FunctionTag.savePreferences, savePreferences);
+  }
+
+  FixedList<T> _trimFixedList<T>(FixedList<T> source, int keepCount) {
+    final items = source.list;
+    if (items.length <= keepCount) {
+      return source;
+    }
+    return FixedList(
+      source.maxLength,
+      list: items.sublist(items.length - keepCount),
+    );
+  }
+
+  void compactBackgroundTransientState() {
+    final logs = _ref.read(logsProvider);
+    if (logs.length > _backgroundRetainedLogs) {
+      _ref.read(logsProvider.notifier).value = _trimFixedList(
+        logs,
+        _backgroundRetainedLogs,
+      );
+    }
+
+    final requests = _ref.read(requestsProvider);
+    if (requests.length > _backgroundRetainedRequests) {
+      _ref.read(requestsProvider.notifier).value = _trimFixedList(
+        requests,
+        _backgroundRetainedRequests,
+      );
+    }
+
+    _ref.read(connectionsProvider.notifier).state = [];
+    globalState.computeHeightMapCache = {};
   }
 
   void changeProxyDebounce(String groupName, String proxyName) {

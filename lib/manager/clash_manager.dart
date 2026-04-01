@@ -20,6 +20,27 @@ class ClashManager extends ConsumerStatefulWidget {
 
 class _ClashContainerState extends ConsumerState<ClashManager>
     with AppMessageListener {
+  bool _messageListenerAttached = false;
+
+  bool get _shouldIgnoreBackgroundMessage {
+    return system.isDesktop && globalState.backgroundMode.value;
+  }
+
+  void _syncMessageListener() {
+    final shouldAttach = !(
+      system.isDesktop && globalState.backgroundMode.value
+    );
+    if (shouldAttach == _messageListenerAttached) {
+      return;
+    }
+    if (shouldAttach) {
+      clashMessage.addListener(this);
+    } else {
+      clashMessage.removeListener(this);
+    }
+    _messageListenerAttached = shouldAttach;
+  }
+
   @override
   Widget build(BuildContext context) {
     return widget.child;
@@ -28,7 +49,8 @@ class _ClashContainerState extends ConsumerState<ClashManager>
   @override
   void initState() {
     super.initState();
-    clashMessage.addListener(this);
+    globalState.backgroundMode.addListener(_syncMessageListener);
+    _syncMessageListener();
     ref.listenManual(needSetupProvider, (prev, next) {
       if (prev != next) {
         globalState.appController.handleChangeProfile();
@@ -59,12 +81,19 @@ class _ClashContainerState extends ConsumerState<ClashManager>
 
   @override
   Future<void> dispose() async {
-    clashMessage.removeListener(this);
+    globalState.backgroundMode.removeListener(_syncMessageListener);
+    if (_messageListenerAttached) {
+      clashMessage.removeListener(this);
+      _messageListenerAttached = false;
+    }
     super.dispose();
   }
 
   @override
   Future<void> onDelay(Delay delay) async {
+    if (_shouldIgnoreBackgroundMessage) {
+      return;
+    }
     super.onDelay(delay);
     final appController = globalState.appController;
     appController.setDelay(delay);
@@ -75,6 +104,9 @@ class _ClashContainerState extends ConsumerState<ClashManager>
 
   @override
   void onLog(Log log) {
+    if (_shouldIgnoreBackgroundMessage) {
+      return;
+    }
     ref.read(logsProvider.notifier).addLog(log);
     if (log.logLevel == LogLevel.error) {
       globalState.showNotifier(log.payload);
@@ -84,12 +116,18 @@ class _ClashContainerState extends ConsumerState<ClashManager>
 
   @override
   void onRequest(TrackerInfo trackerInfo) async {
+    if (_shouldIgnoreBackgroundMessage) {
+      return;
+    }
     ref.read(requestsProvider.notifier).addRequest(trackerInfo);
     super.onRequest(trackerInfo);
   }
 
   @override
   Future<void> onLoaded(String providerName) async {
+    if (_shouldIgnoreBackgroundMessage) {
+      return;
+    }
     ref
         .read(providersProvider.notifier)
         .setProvider(await clashCore.getExternalProvider(providerName));
