@@ -134,12 +134,25 @@ class _EditProfileViewState extends State<EditProfileView> {
     }
   }
 
+  Future<String> _readFileWithFallbackEncoding(File file) async {
+    final bytes = await file.readAsBytes();
+    try {
+      return utf8.decode(bytes);
+    } catch (_) {
+      try {
+        return latin1.decode(bytes);
+      } catch (_) {
+        return String.fromCharCodes(bytes);
+      }
+    }
+  }
+
   Future<void> _editProfileFile() async {
     if (rawText == null) {
       final profilePath = await appPath.getProfilePath(widget.profile.id);
       final file = File(profilePath);
       if (await file.exists()) {
-        rawText = await file.readAsString();
+        rawText = await _readFileWithFallbackEncoding(file);
       }
     }
     if (!mounted) return;

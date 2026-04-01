@@ -367,6 +367,15 @@ extension TunExt on Tun {
       );
     }
 
+    if (routeMode == RouteMode.bypassPrivate) {
+      return copyWith(
+        autoRoute: true,
+        strictRoute: false,
+        routeAddress: mRouteAddress,
+        routeExcludeAddress: [],
+      );
+    }
+
     return copyWith(
       autoRoute: mRouteAddress.isEmpty ? true : false,
       strictRoute: false,
