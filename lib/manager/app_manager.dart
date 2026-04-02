@@ -169,12 +169,21 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: (_) {
-        render?.active();
-      },
-      onPointerHover: (_) {
-        render?.active();
+    return ValueListenableBuilder<bool>(
+      valueListenable: globalState.backgroundMode,
+      builder: (_, backgroundMode, child) {
+        return TickerMode(
+          enabled: !backgroundMode,
+          child: Listener(
+            onPointerDown: (_) {
+              render?.active();
+            },
+            onPointerHover: (_) {
+              render?.active();
+            },
+            child: child!,
+          ),
+        );
       },
       child: widget.child,
     );
