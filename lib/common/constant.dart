@@ -117,7 +117,7 @@ final mainIsolate = 'BettboxMainIsolate';
 final serviceIsolate = 'BettboxServiceIsolate';
 
 const defaultPrimaryColors = [
-  0xFF000000,
+  0xFF191919,
   0xFF1976D2,
   defaultPrimaryColor,
   0xFFE91E63,

@@ -20,6 +20,9 @@ class ClashManager extends ConsumerStatefulWidget {
 
 class _ClashContainerState extends ConsumerState<ClashManager>
     with AppMessageListener {
+  DateTime? _lastErrorLogTime;
+  static const _errorLogThrottleDuration = Duration(seconds: 3);
+
   @override
   Widget build(BuildContext context) {
     return widget.child;
@@ -77,7 +80,12 @@ class _ClashContainerState extends ConsumerState<ClashManager>
   void onLog(Log log) {
     ref.read(logsProvider.notifier).addLog(log);
     if (log.logLevel == LogLevel.error) {
-      globalState.showNotifier(log.payload);
+      final now = DateTime.now();
+      if (_lastErrorLogTime == null ||
+          now.difference(_lastErrorLogTime!) > _errorLogThrottleDuration) {
+        _lastErrorLogTime = now;
+        globalState.showNotifier(log.payload);
+      }
     }
     super.onLog(log);
   }

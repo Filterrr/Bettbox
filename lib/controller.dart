@@ -169,7 +169,7 @@ class AppController {
         _ref.read(groupsProvider.notifier).value = groups;
         _ref.read(providersProvider.notifier).value = providers;
 
-        await Future.delayed(const Duration(seconds: 2));
+        await Future.delayed(const Duration(seconds: 5));
         if (version != _backgroundLoadVersion) return;
         await clashCore.requestGc();
       } catch (e) {

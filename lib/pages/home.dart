@@ -127,9 +127,39 @@ class HomePage extends StatelessWidget {
           selectedItemColor: context.colorScheme.onSecondaryContainer,
           unselectedItemColor: context.colorScheme.onSurfaceVariant,
           items: navigationItems.map((e) {
+            String label;
+            switch (e.label) {
+              case PageLabel.dashboard:
+                label = appLocalizations.dashboard;
+                break;
+              case PageLabel.proxies:
+                label = appLocalizations.proxies;
+                break;
+              case PageLabel.profiles:
+                label = appLocalizations.profiles;
+                break;
+              case PageLabel.tools:
+                label = appLocalizations.tools;
+                break;
+              case PageLabel.logs:
+                label = appLocalizations.logs;
+                break;
+              case PageLabel.requests:
+                label = appLocalizations.requests;
+                break;
+              case PageLabel.resources:
+                label = appLocalizations.resources;
+                break;
+              case PageLabel.script:
+                label = appLocalizations.script;
+                break;
+              case PageLabel.connections:
+                label = appLocalizations.connections;
+                break;
+            }
             return BottomNavigationBarItem(
               icon: e.icon,
-              label: e.label.name,
+              label: label,
             );
           }).toList(),
         ),
