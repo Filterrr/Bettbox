@@ -1,4 +1,5 @@
 {
+  "@@locale": "zh_TC",
   "rule": "規則",
   "global": "全域",
   "direct": "直連",
@@ -480,6 +481,8 @@
   "routeMode_config": "使用配置",
   "routeAddress": "路由地址",
   "routeAddressDesc": "設定監聽路由地址",
+  "routeExcludeAddress": "排除地址",
+  "routeExcludeAddressDesc": "設定路由排除地址",
   "pleaseInputAdminPassword": "請輸入管理員密碼",
   "copyEnvVar": "複製環境變數",
   "memoryInfo": "記憶體資訊",

@@ -885,6 +885,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "routeAddressDesc": MessageLookupByLibrary.simpleMessage(
       "Настроить адрес прослушивания маршрутизации",
     ),
+    "routeExcludeAddress": MessageLookupByLibrary.simpleMessage(
+      "Исключаемые адреса",
+    ),
+    "routeExcludeAddressDesc": MessageLookupByLibrary.simpleMessage(
+      "Настроить исключаемые адреса маршрутизации",
+    ),
     "routeMode": MessageLookupByLibrary.simpleMessage("Режим маршрутизации"),
     "routeMode_bypassPrivate": MessageLookupByLibrary.simpleMessage(
       "Обход частных адресов",

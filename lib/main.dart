@@ -139,16 +139,13 @@ Future<void> _service(List<String> flags) async {
     );
 
     vpn?.handleGetStartForegroundParams = () async {
-      if (AppLocalizations.currentOrNull == null) {
-        final locale = globalState.config.appSetting.locale?.isNotEmpty == true
-            ? utils.getLocaleForString(globalState.config.appSetting.locale!)
-            : WidgetsBinding.instance.platformDispatcher.locale;
-        if (locale != null) {
-          await AppLocalizations.load(locale);
-        }
-        if (AppLocalizations.currentOrNull == null) {
-          await AppLocalizations.load(const Locale('zh', 'CN'));
-        }
+      final locale = globalState.config.appSetting.locale?.isNotEmpty == true
+          ? utils.getLocaleForString(globalState.config.appSetting.locale!)
+          : WidgetsBinding.instance.platformDispatcher.locale;
+      if (locale != null) {
+        await AppLocalizations.load(locale);
+      } else {
+        await AppLocalizations.load(const Locale('zh', 'CN'));
       }
 
       final isSmartStopped = await vpn?.isSmartStopped() ?? false;

@@ -1,4 +1,5 @@
 {
+  "@@locale": "ru",
   "rule": "Правила",
   "global": "Глобально",
   "direct": "Напрямую",
@@ -480,6 +481,8 @@
   "routeMode_config": "Использовать конфигурацию",
   "routeAddress": "Адрес маршрутизации",
   "routeAddressDesc": "Настроить адрес прослушивания маршрутизации",
+  "routeExcludeAddress": "Исключаемые адреса",
+  "routeExcludeAddressDesc": "Настроить исключаемые адреса маршрутизации",
   "pleaseInputAdminPassword": "Введите пароль администратора",
   "copyEnvVar": "Копировать переменные окружения",
   "memoryInfo": "Информация о памяти",

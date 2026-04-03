@@ -44,6 +44,16 @@ Config configState(Ref ref) {
   );
 }
 
+final effectiveRouteModeProvider = Provider<RouteMode>((ref) {
+  final routeMode = ref.watch(
+    networkSettingProvider.select((state) => state.routeMode),
+  );
+  if (system.isAndroid) {
+    return RouteMode.bypassPrivate;
+  }
+  return routeMode;
+});
+
 @riverpod
 GroupsState currentGroupsState(Ref ref) {
   final mode = ref.watch(
@@ -99,9 +109,7 @@ NavigationItemsState currentNavigationItemsState(Ref ref) {
 @riverpod
 CoreState coreState(Ref ref) {
   final vpnProps = ref.watch(vpnSettingProvider);
-  final routeMode = ref.watch(
-    networkSettingProvider.select((state) => state.routeMode),
-  );
+  final routeMode = ref.watch(effectiveRouteModeProvider);
   final currentProfile = ref.watch(currentProfileProvider);
   final onlyStatisticsProxy = ref.watch(appSettingProvider).onlyStatisticsProxy;
   return CoreState(
@@ -113,9 +121,7 @@ CoreState coreState(Ref ref) {
 
 @riverpod
 UpdateParams updateParams(Ref ref) {
-  final routeMode = ref.watch(
-    networkSettingProvider.select((state) => state.routeMode),
-  );
+  final routeMode = ref.watch(effectiveRouteModeProvider);
   return ref.watch(
     patchClashConfigProvider.select(
       (state) => UpdateParams(

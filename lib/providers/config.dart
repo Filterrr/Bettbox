@@ -1,4 +1,5 @@
 import 'package:bett_box/common/common.dart';
+import 'package:bett_box/enum/enum.dart';
 import 'package:bett_box/models/models.dart';
 import 'package:bett_box/state.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -58,18 +59,27 @@ class VpnSetting extends _$VpnSetting with AutoDisposeNotifierMixin {
 
 @riverpod
 class NetworkSetting extends _$NetworkSetting with AutoDisposeNotifierMixin {
+  NetworkProps _normalize(NetworkProps value) {
+    if (!system.isAndroid) {
+      return value;
+    }
+    return value.copyWith(routeMode: RouteMode.bypassPrivate);
+  }
+
   @override
   NetworkProps build() {
-    return globalState.config.networkProps;
+    return _normalize(globalState.config.networkProps);
   }
 
   @override
   onUpdate(value) {
-    globalState.config = globalState.config.copyWith(networkProps: value);
+    globalState.config = globalState.config.copyWith(
+      networkProps: _normalize(value),
+    );
   }
 
   void updateState(NetworkProps Function(NetworkProps state) builder) {
-    state = builder(state);
+    state = _normalize(builder(state));
   }
 }
 

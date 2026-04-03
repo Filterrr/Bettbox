@@ -869,6 +869,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "routeAddressDesc": MessageLookupByLibrary.simpleMessage(
       "Configure route listen address",
     ),
+    "routeExcludeAddress": MessageLookupByLibrary.simpleMessage(
+      "Exclude Address",
+    ),
+    "routeExcludeAddressDesc": MessageLookupByLibrary.simpleMessage(
+      "Configure route exclude address",
+    ),
     "routeMode": MessageLookupByLibrary.simpleMessage("Route Mode"),
     "routeMode_bypassPrivate": MessageLookupByLibrary.simpleMessage(
       "Bypass Private IPs",

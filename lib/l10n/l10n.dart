@@ -25,8 +25,6 @@ class AppLocalizations {
     return _current!;
   }
 
-  static AppLocalizations? get currentOrNull => _current;
-
   static const AppLocalizationDelegate delegate = AppLocalizationDelegate();
 
   static Future<AppLocalizations> load(Locale locale) {
@@ -3876,6 +3874,26 @@ class AppLocalizations {
     return Intl.message(
       'Configure route listen address',
       name: 'routeAddressDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Exclude Address`
+  String get routeExcludeAddress {
+    return Intl.message(
+      'Exclude Address',
+      name: 'routeExcludeAddress',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Configure route exclude address`
+  String get routeExcludeAddressDesc {
+    return Intl.message(
+      'Configure route exclude address',
+      name: 'routeExcludeAddressDesc',
       desc: '',
       args: [],
     );

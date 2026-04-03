@@ -1,4 +1,5 @@
 {
+  "@@locale": "en",
   "rule": "Rule",
   "global": "Global",
   "direct": "Direct",
@@ -480,6 +481,8 @@
   "routeMode_config": "Use Config",
   "routeAddress": "Route Address",
   "routeAddressDesc": "Configure route listen address",
+  "routeExcludeAddress": "Exclude Address",
+  "routeExcludeAddressDesc": "Configure route exclude address",
   "pleaseInputAdminPassword": "Please enter the admin password",
   "copyEnvVar": "Copy Environment Variable",
   "memoryInfo": "Memory Info",

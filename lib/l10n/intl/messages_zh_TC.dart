@@ -613,6 +613,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "rotatingCircle": MessageLookupByLibrary.simpleMessage("單圓自轉"),
     "routeAddress": MessageLookupByLibrary.simpleMessage("路由地址"),
     "routeAddressDesc": MessageLookupByLibrary.simpleMessage("設定監聽路由地址"),
+    "routeExcludeAddress": MessageLookupByLibrary.simpleMessage("排除地址"),
+    "routeExcludeAddressDesc": MessageLookupByLibrary.simpleMessage("設定路由排除地址"),
     "routeMode": MessageLookupByLibrary.simpleMessage("路由模式"),
     "routeMode_bypassPrivate": MessageLookupByLibrary.simpleMessage("繞過私有路由地址"),
     "routeMode_config": MessageLookupByLibrary.simpleMessage("使用配置"),
