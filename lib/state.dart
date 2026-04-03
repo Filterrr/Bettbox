@@ -322,7 +322,7 @@ class GlobalState {
     return await showModal<T>(
       context: navigatorKey.currentState!.context,
       configuration: FadeScaleTransitionConfiguration(
-        barrierColor: Colors.black54,
+        barrierColor: Colors.black60,
         barrierDismissible: dismissible,
       ),
       builder: (_) => child,

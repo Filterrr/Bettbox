@@ -10,6 +10,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
 import android.os.IBinder
+import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import com.appshub.bettbox.BettboxApplication
 import com.appshub.bettbox.GlobalState
@@ -416,6 +417,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     }
                     GlobalState.updateRunState(RunState.START)
                     lastStartForegroundParams = null
+                    scope.launch { startForegroundImmediately() }
                     true
                 }
 
@@ -426,6 +428,14 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 android.util.Log.e("VpnPlugin", "Fatal error in start flow: ${e.message}")
                 GlobalState.updateRunState(RunState.STOP)
             }
+        }
+    }
+
+    private suspend fun startForegroundImmediately() {
+        runCatching {
+            bettBoxService?.startForeground("Bettbox", "")
+        }.onFailure {
+            android.util.Log.e("VpnPlugin", "Immediate foreground start failed: ${it.message}")
         }
     }
 
@@ -610,6 +620,11 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 BettboxApplication.getAppContext(),
                 if (options?.enable == true) BettboxVpnService::class.java else BettboxService::class.java
             )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(BettboxApplication.getAppContext(), intent)
+            } else {
+                BettboxApplication.getAppContext().startService(intent)
+            }
             val res = BettboxApplication.getAppContext().bindService(intent, connection, Context.BIND_AUTO_CREATE)
             if (!res) {
                 isBinding.set(false)
