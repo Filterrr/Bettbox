@@ -7,6 +7,7 @@ import 'package:bett_box/l10n/l10n.dart';
 import 'package:bett_box/manager/hotkey_manager.dart';
 import 'package:bett_box/manager/manager.dart';
 import 'package:bett_box/plugins/app.dart';
+import 'package:bett_box/plugins/service.dart';
 import 'package:bett_box/providers/providers.dart';
 import 'package:bett_box/state.dart';
 import 'package:flutter/material.dart';
@@ -24,10 +25,11 @@ class Application extends ConsumerStatefulWidget {
   ConsumerState<Application> createState() => ApplicationState();
 }
 
-class ApplicationState extends ConsumerState<Application>
-    with WidgetsBindingObserver {
+class ApplicationState extends ConsumerState<Application> {
   Timer? _autoUpdateGroupTaskTimer;
   Timer? _autoUpdateProfilesTaskTimer;
+  AppLifecycleListener? _appLifecycleListener;
+  bool _isLifecycleStopping = false;
 
   final _pageTransitionsTheme = const PageTransitionsTheme(
     builders: <TargetPlatform, PageTransitionsBuilder>{
@@ -48,7 +50,20 @@ class ApplicationState extends ConsumerState<Application>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    _appLifecycleListener = AppLifecycleListener(
+      onStateChange: (_) => _syncAutoUpdateTasks(),
+      onResume: () {
+        _syncAutoUpdateTasks();
+        if (system.isAndroid &&
+            globalState.config.appSetting.enableHighRefreshRate) {
+          unawaited(_restoreHighRefreshRate());
+        }
+      },
+      onDetach: () {
+        _syncAutoUpdateTasks();
+        unawaited(_handleAppDetached());
+      },
+    );
     globalState.backgroundMode.addListener(_syncAutoUpdateTasks);
     _syncAutoUpdateTasks();
     globalState.appController = AppController(context, ref);
@@ -74,14 +89,20 @@ class ApplicationState extends ConsumerState<Application>
     }
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _syncAutoUpdateTasks();
-    if (state == AppLifecycleState.resumed) {
-      if (system.isAndroid &&
-          globalState.config.appSetting.enableHighRefreshRate) {
-        _restoreHighRefreshRate();
-      }
+  Future<void> _handleAppDetached() async {
+    if (!system.isAndroid || _isLifecycleStopping) {
+      return;
+    }
+    final isRunning =
+        ref.read(runTimeProvider) != null || globalState.isStart;
+    if (!isRunning) {
+      return;
+    }
+    _isLifecycleStopping = true;
+    try {
+      await service?.stopVpn();
+    } catch (e) {
+      commonPrint.log('Failed to stop VPN on detach: $e');
     }
   }
 
@@ -178,7 +199,7 @@ class ApplicationState extends ConsumerState<Application>
             );
             final themeProps = ref.watch(themeSettingProvider);
             final fontFamily = themeProps.useHarmonyFont ? 'HarmonyOS_Sans' : null;
-            final fontFamilyFallback = system.isAndroid ? const <String>['Roboto'] : null;
+            final fontFamilyFallback = system.isAndroid ? const <String>['system-ui'] : null;
             
             return MaterialApp(
               debugShowCheckedModeBanner: false,
@@ -233,7 +254,8 @@ class ApplicationState extends ConsumerState<Application>
   @override
   void dispose() {
     globalState.backgroundMode.removeListener(_syncAutoUpdateTasks);
-    WidgetsBinding.instance.removeObserver(this);
+    _appLifecycleListener?.dispose();
+    _appLifecycleListener = null;
     linkManager.destroy();
     _autoUpdateGroupTaskTimer?.cancel();
     _autoUpdateProfilesTaskTimer?.cancel();

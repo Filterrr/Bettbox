@@ -183,6 +183,12 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         return true
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        runCatching { VpnPlugin.handleStop(force = true) }
+            .onFailure { Log.e(TAG, "Failed to stop VPN on task removed: ${it.message}") }
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onRevoke() {
         runCatching { VpnPlugin.handleStop() }
         super.onRevoke()
