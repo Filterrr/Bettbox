@@ -34,8 +34,8 @@ class _ResourcesViewState extends State<ResourcesView> {
   final isUpdatingAll = ValueNotifier<bool>(false);
 
   static const geoItems = <GeoItem>[
-    GeoItem(label: 'GEOIP', fileName: geoIpFileName, key: 'geoip'),
-    GeoItem(label: 'GEOSITE', fileName: geoSiteFileName, key: 'geosite'),
+    GeoItem(label: 'GeoIp', fileName: geoIpFileName, key: 'geoip'),
+    GeoItem(label: 'GeoSite', fileName: geoSiteFileName, key: 'geosite'),
     GeoItem(label: 'MMDB', fileName: mmdbFileName, key: 'mmdb'),
     GeoItem(label: 'ASN', fileName: asnFileName, key: 'asn'),
   ];
@@ -50,7 +50,7 @@ class _ResourcesViewState extends State<ResourcesView> {
           (geoItem) => clashCore.updateGeoData(
             UpdateGeoDataParams(
               geoName: geoItem.fileName,
-              geoType: geoItem.key,
+              geoType: geoItem.label,
             ),
           ),
         ),
@@ -261,7 +261,7 @@ class _GeoDataListItemState extends State<GeoDataListItem> {
     isUpdating.value = true;
     try {
       final message = await clashCore.updateGeoData(
-        UpdateGeoDataParams(geoName: geoItem.fileName, geoType: geoItem.key),
+        UpdateGeoDataParams(geoName: geoItem.fileName, geoType: geoItem.label),
       );
       if (message.isNotEmpty) throw message;
     } catch (e) {

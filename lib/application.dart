@@ -31,10 +31,10 @@ class ApplicationState extends ConsumerState<Application>
 
   final _pageTransitionsTheme = const PageTransitionsTheme(
     builders: <TargetPlatform, PageTransitionsBuilder>{
-      TargetPlatform.android: CommonPageTransitionsBuilder(),
-      TargetPlatform.windows: CommonPageTransitionsBuilder(),
-      TargetPlatform.linux: CommonPageTransitionsBuilder(),
-      TargetPlatform.macOS: CommonPageTransitionsBuilder(),
+      TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
     },
   );
 
@@ -178,6 +178,7 @@ class ApplicationState extends ConsumerState<Application>
             );
             final themeProps = ref.watch(themeSettingProvider);
             final fontFamily = themeProps.useHarmonyFont ? 'HarmonyOS_Sans' : null;
+            final fontFamilyFallback = system.isAndroid ? const <String>['Roboto'] : null;
             
             return MaterialApp(
               debugShowCheckedModeBanner: false,
@@ -208,6 +209,7 @@ class ApplicationState extends ConsumerState<Application>
                   primaryColor: themeProps.primaryColor,
                 ),
                 fontFamily: fontFamily,
+                fontFamilyFallback: fontFamilyFallback,
               ),
               darkTheme: ThemeData(
                 useMaterial3: true,
@@ -217,6 +219,7 @@ class ApplicationState extends ConsumerState<Application>
                   primaryColor: themeProps.primaryColor,
                 ).toPureBlack(themeProps.pureBlack),
                 fontFamily: fontFamily,
+                fontFamilyFallback: fontFamilyFallback,
               ),
               home: child!,
             );
