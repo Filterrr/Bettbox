@@ -34,7 +34,7 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _dashboardTickListener = () {
-      if (!globalState.isStart) {
+      if (!ref.read(isCoreRunningProvider)) {
         return;
       }
       unawaited(globalState.appController.updateRunTime());

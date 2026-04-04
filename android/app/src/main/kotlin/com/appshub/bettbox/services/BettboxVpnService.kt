@@ -103,7 +103,11 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
             setHttpProxy(ProxyInfo.buildDirectProxy("127.0.0.1", options.port, proxyBypassList))
         }
 
-        establish()?.detachFd()?.also { return it }
+        establish()?.detachFd()?.also {
+            GlobalState.markVpnEstablished()
+            return it
+        }
+        GlobalState.markVpnStopped()
         Log.e(TAG, "Establish VPN rejected by system")
         -1
     }
@@ -125,6 +129,7 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         if (isStopped) return
         isStopped = true
         isForegroundStarted = false
+        GlobalState.markVpnStopped()
 
         runCatching { Core.stopTun() }
             .onFailure { Log.e(TAG, "Failed to stop TUN: ${it.message}") }
@@ -201,12 +206,12 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        runCatching { VpnPlugin.handleStop(force = true) }
-            .onFailure { Log.e(TAG, "Failed to stop VPN on task removed: ${it.message}") }
+        Log.d(TAG, "Task removed, keeping VPN service alive")
         super.onTaskRemoved(rootIntent)
     }
 
     override fun onRevoke() {
+        GlobalState.markVpnStopped()
         runCatching { VpnPlugin.handleStop() }
         super.onRevoke()
     }

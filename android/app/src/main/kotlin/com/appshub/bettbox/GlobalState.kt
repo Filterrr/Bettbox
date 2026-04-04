@@ -55,6 +55,9 @@ object GlobalState {
     @Volatile
     var isStopping = false
 
+    @Volatile
+    private var vpnServiceRunning: Boolean? = false
+
     fun updateRunState(newState: RunState) {
         if (newState != RunState.PENDING) {
             pendingTimeoutJob?.cancel()
@@ -64,7 +67,32 @@ object GlobalState {
         runState.postValueSafe(newState)
     }
 
-    fun resolveRunState(): RunState = currentRunState
+    fun markVpnStartInitiated() {
+        vpnServiceRunning = null
+    }
+
+    fun markVpnEstablished() {
+        vpnServiceRunning = true
+        updateRunState(RunState.START)
+        ServicePlugin.notifyRunStateChanged(true)
+    }
+
+    fun markVpnStopped() {
+        vpnServiceRunning = false
+        updateRunState(RunState.STOP)
+        ServicePlugin.notifyRunStateChanged(false)
+    }
+
+    fun resolveRunState(): RunState {
+        if (currentRunState == RunState.PENDING) {
+            return RunState.PENDING
+        }
+        return when (vpnServiceRunning) {
+            true -> RunState.START
+            false -> RunState.STOP
+            null -> currentRunState
+        }
+    }
 
     private fun MutableLiveData<RunState>.postValueSafe(value: RunState) = try {
         if (Looper.myLooper() == Looper.getMainLooper()) {

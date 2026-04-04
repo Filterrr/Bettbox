@@ -32,7 +32,7 @@ class _StartButtonState extends ConsumerState<StartButton> {
         _isDisabled = false;
       });
     });
-    final isStart = ref.read(runTimeProvider) != null;
+    final isStart = ref.read(isCoreRunningProvider);
     final newState = !isStart;
 
     debouncer.call(FunctionTag.updateStatus, () {
@@ -41,7 +41,7 @@ class _StartButtonState extends ConsumerState<StartButton> {
   }
 
   Future<void> _handleLongPress() async {
-    final isStart = ref.read(runTimeProvider) != null;
+    final isStart = ref.read(isCoreRunningProvider);
     if (!isStart) return;
 
     final result = await globalState.showCommonDialog<bool>(
@@ -86,7 +86,7 @@ class _StartButtonState extends ConsumerState<StartButton> {
       valueListenable: dashboardRefreshManager.tick1s,
       builder: (_, _, _) {
         final runTime = ref.read(runTimeProvider);
-        final isStart = runTime != null;
+        final isStart = ref.watch(isCoreRunningProvider);
         return SizedBox(
           height: getWidgetHeight(1),
           child: CommonCard(

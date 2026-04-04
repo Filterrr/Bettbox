@@ -151,7 +151,7 @@ class _SmartAutoStopManagerState extends ConsumerState<SmartAutoStopManager> {
       // Dedup: only act on state transitions
       if (shouldStop && !isSmartStopped) {
         // Need to stop, but only if VPN is actually running
-        final isRunning = ref.read(runTimeProvider) != null || globalState.isStart;
+        final isRunning = ref.read(isCoreRunningProvider);
         if (isRunning) {
           ref.read(isSmartStoppedProvider.notifier).set(true);
           commonPrint.log('Smart Auto Stop: Stopping ...');
@@ -213,6 +213,7 @@ class _SmartAutoStopManagerState extends ConsumerState<SmartAutoStopManager> {
       await service?.smartResume();
 
       globalState.startTime = DateTime.now();
+      ref.read(nativeVpnRunningProvider.notifier).state = true;
       ref.read(runTimeProvider.notifier).value = 0;
       globalState.appController.addCheckIpNumDebounce();
     } else {

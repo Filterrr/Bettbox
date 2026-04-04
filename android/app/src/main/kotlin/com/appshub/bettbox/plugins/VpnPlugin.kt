@@ -435,6 +435,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         GlobalState.updateRunState(RunState.STOP)
                         return@withLock false
                     }
+                    GlobalState.markVpnStartInitiated()
                     GlobalState.updateRunState(RunState.START)
                     foregroundRefreshJob?.cancel()
                     lastStartForegroundParams = null
@@ -610,6 +611,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     return@withLock false
                 }
 
+                GlobalState.markVpnStartInitiated()
                 GlobalState.updateRunState(RunState.START)
                 foregroundRefreshJob?.cancel()
                 lastStartForegroundParams = null

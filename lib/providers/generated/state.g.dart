@@ -114,7 +114,7 @@ final updateParamsProvider = AutoDisposeProvider<UpdateParams>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef UpdateParamsRef = AutoDisposeProviderRef<UpdateParams>;
-String _$proxyStateHash() => r'22478fb593aaca11dfe2cf64472013190475a5bc';
+String _$proxyStateHash() => r'2395aaf42059224bd5f8da5f93b7b5c1733da5d0';
 
 /// See also [proxyState].
 @ProviderFor(proxyState)
@@ -131,7 +131,7 @@ final proxyStateProvider = AutoDisposeProvider<ProxyState>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ProxyStateRef = AutoDisposeProviderRef<ProxyState>;
-String _$trayStateHash() => r'27b579ff8b1cac3c39f8d30b40a683f7e2f91dd4';
+String _$trayStateHash() => r'fdffc3d6b67197019ca513bf2b54a79c48d874eb';
 
 /// See also [trayState].
 @ProviderFor(trayState)
@@ -2050,7 +2050,7 @@ final currentBrightnessProvider = AutoDisposeProvider<Brightness>.internal(
 // ignore: unused_element
 typedef CurrentBrightnessRef = AutoDisposeProviderRef<Brightness>;
 String _$autoSetSystemDnsStateHash() =>
-    r'2e0976e079100325b1ca797285df48a94c2c066c';
+    r'a32ead833cfaee50cc5df02815b5f50fe4657511';
 
 /// See also [autoSetSystemDnsState].
 @ProviderFor(autoSetSystemDnsState)
