@@ -14,7 +14,6 @@ abstract mixin class VpnListener {
 class Vpn {
   static final Vpn _instance = Vpn._internal();
   final MethodChannel methodChannel = const MethodChannel('vpn');
-  FutureOr<String> Function()? handleGetStartForegroundParams;
 
   Vpn._internal() {
     methodChannel.setMethodCallHandler((call) async {
@@ -25,8 +24,6 @@ class Vpn {
         case 'closeConnections':
           clashCore.closeConnections();
           return null;
-        case 'getStartForegroundParams':
-          return handleGetStartForegroundParams?.call() ?? '';
         case 'status':
           return clashLibHandler?.getRunTime() != null;
         case 'dnsChanged':
@@ -77,6 +74,20 @@ class Vpn {
 
   Future<bool> getStatus() async {
     return await methodChannel.invokeMethod<bool>('status') ?? false;
+  }
+
+  Future<bool?> setNotificationTexts({
+    required String connectedTitle,
+    required String connectedContent,
+    required String suspendedTitle,
+    required String suspendedContent,
+  }) {
+    return methodChannel.invokeMethod<bool>('setNotificationTexts', {
+      'connectedTitle': connectedTitle,
+      'connectedContent': connectedContent,
+      'suspendedTitle': suspendedTitle,
+      'suspendedContent': suspendedContent,
+    });
   }
 
   void addListener(VpnListener listener) => _listeners.add(listener);
