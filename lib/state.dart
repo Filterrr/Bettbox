@@ -736,9 +736,8 @@ class GlobalState {
 }
 
 class DashboardRefreshManager {
-  Timer? _timer1s;
-  Timer? _timer2s;
-  Timer? _timer5s;
+  Timer? _timer;
+  int _tickCount = 0;
   bool _isRunning = false;
 
   final tick1s = ValueNotifier<int>(0);
@@ -768,28 +767,28 @@ class DashboardRefreshManager {
     notifier.value++;
   }
 
+  // 合并为单定时器 + 计数器，减少 2 个 Timer 的调度开销
   void start() {
     if (_isRunning) return;
     _isRunning = true;
-    _timer1s = Timer.periodic(const Duration(seconds: 1), (_) {
+    _tickCount = 0;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _tickCount++;
       _tryTick(tick1s);
-    });
-    _timer2s = Timer.periodic(const Duration(seconds: 2), (_) {
-      _tryTick(tick2s);
-    });
-    _timer5s = Timer.periodic(const Duration(seconds: 5), (_) {
-      _tryTick(tick5s);
+      if (_tickCount % 2 == 0) {
+        _tryTick(tick2s);
+      }
+      if (_tickCount % 5 == 0) {
+        _tryTick(tick5s);
+      }
     });
   }
 
   void stop() {
     if (!_isRunning) return;
-    _timer1s?.cancel();
-    _timer2s?.cancel();
-    _timer5s?.cancel();
-    _timer1s = null;
-    _timer2s = null;
-    _timer5s = null;
+    _timer?.cancel();
+    _timer = null;
+    _tickCount = 0;
     _isRunning = false;
   }
 }
