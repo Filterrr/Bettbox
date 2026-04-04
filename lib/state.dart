@@ -319,10 +319,12 @@ class GlobalState {
     required Widget child,
     bool dismissible = true,
   }) async {
+    final context = navigatorKey.currentState!.context;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return await showModal<T>(
-      context: navigatorKey.currentState!.context,
+      context: context,
       configuration: FadeScaleTransitionConfiguration(
-        barrierColor: Colors.black60,
+        barrierColor: isDark ? const Color(0xCC000000) : const Color(0x99000000),
         barrierDismissible: dismissible,
       ),
       builder: (_) => child,
