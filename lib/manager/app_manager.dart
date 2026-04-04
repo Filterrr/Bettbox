@@ -33,12 +33,12 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // updateTraffic 已由 update loop 每秒驱动，此处不再重复调用
     _dashboardTickListener = () {
       if (!ref.read(isCoreRunningProvider)) {
         return;
       }
       unawaited(globalState.appController.updateRunTime());
-      unawaited(globalState.appController.updateTraffic());
     };
     dashboardRefreshManager.tick1s.addListener(_dashboardTickListener);
     ref.listenManual(layoutChangeProvider, (prev, next) {
