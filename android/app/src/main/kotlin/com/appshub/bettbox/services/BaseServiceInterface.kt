@@ -52,18 +52,14 @@ private fun Service.resolveMainActivityComponent(): ComponentName {
     }
 }
 
-private fun Service.createMainActivityIntent(fromVpnConfigure: Boolean = false): Intent {
+private fun Service.createMainActivityIntent(): Intent {
     val targetComponent = resolveMainActivityComponent()
     android.util.Log.d("Notification", "Using ${targetComponent.className}")
 
     return Intent().apply {
         component = targetComponent
-        if (fromVpnConfigure) {
-            action = "$packageName.action.OPEN_VPN_CONFIGURE"
-        } else {
-            action = Intent.ACTION_MAIN
-            addCategory(Intent.CATEGORY_LAUNCHER)
-        }
+        action = Intent.ACTION_MAIN
+        addCategory(Intent.CATEGORY_LAUNCHER)
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or
             Intent.FLAG_ACTIVITY_CLEAR_TOP or
             Intent.FLAG_ACTIVITY_SINGLE_TOP or
@@ -83,7 +79,9 @@ fun Service.createMainActivityPendingIntent(requestCode: Int = 0): PendingIntent
 }
 
 fun Service.createVpnConfigurePendingIntent(requestCode: Int = 1): PendingIntent {
-    val intent = createMainActivityIntent(fromVpnConfigure = true)
+    val intent = Intent().apply {
+        component = ComponentName(packageName, "com.appshub.bettbox.MainActivity")
+    }
     val flags = if (Build.VERSION.SDK_INT >= 31) {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
     } else {

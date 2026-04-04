@@ -582,6 +582,8 @@
   "import": "导入",
   "importFile": "通过文件导入",
   "importUrl": "通过URL导入",
+  "importFromCode": "通过代码导入",
+  "importFailed": "导入失败",
   "autoSetSystemDns": "自动设置系统DNS",
   "details": "{label}详情",
   "creationTime": "创建时间",

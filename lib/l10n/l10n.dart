@@ -4674,6 +4674,26 @@ class AppLocalizations {
     );
   }
 
+  /// `Import from Code`
+  String get importFromCode {
+    return Intl.message(
+      'Import from Code',
+      name: 'importFromCode',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Import Failed`
+  String get importFailed {
+    return Intl.message(
+      'Import Failed',
+      name: 'importFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Auto Set System DNS`
   String get autoSetSystemDns {
     return Intl.message(

@@ -583,6 +583,8 @@
   "import": "Импорт",
   "importFile": "Импорт из файла",
   "importUrl": "Импорт по URL",
+  "importFromCode": "Импорт из кода",
+  "importFailed": "Ошибка импорта",
   "autoSetSystemDns": "Автоматически настроить системный DNS",
   "details": "Подробности {label}",
   "creationTime": "Время создания",

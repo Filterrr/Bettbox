@@ -581,6 +581,8 @@
   "import": "Import",
   "importFile": "Import from File",
   "importUrl": "Import from URL",
+  "importFromCode": "Import from Code",
+  "importFailed": "Import Failed",
   "autoSetSystemDns": "Auto Set System DNS",
   "details": "{label} Details",
   "creationTime": "Creation Time",
