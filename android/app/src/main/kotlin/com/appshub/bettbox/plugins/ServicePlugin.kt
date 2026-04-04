@@ -84,7 +84,6 @@ class ServicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 result.success(true)
             }
             "init" -> {
-                GlobalState.getCurrentAppPlugin()?.requestNotificationsPermission()
                 GlobalState.initServiceEngine()
                 result.success(true)
             }

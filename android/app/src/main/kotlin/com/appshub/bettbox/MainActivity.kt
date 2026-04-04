@@ -1,6 +1,7 @@
 package com.appshub.bettbox
 
 import android.content.Context
+import android.content.Intent
 import com.appshub.bettbox.plugins.AppPlugin
 import com.appshub.bettbox.plugins.ServicePlugin
 import com.appshub.bettbox.plugins.TilePlugin
@@ -39,6 +40,11 @@ class MainActivity : FlutterActivity() {
         }
 
         GlobalState.flutterEngine = flutterEngine
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
     }
 
     override fun shouldDestroyEngineWithHost(): Boolean = false

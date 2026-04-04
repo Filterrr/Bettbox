@@ -758,7 +758,11 @@ class AppController {
 
     if (system.isAndroid) {
       final nativeRunning = await vpn_service.service?.getStatus();
-      _ref.read(nativeVpnRunningProvider.notifier).state = nativeRunning;
+      if (nativeRunning == true) {
+        await _handleNativeRunStateChanged(true);
+      } else {
+        _ref.read(nativeVpnRunningProvider.notifier).state = false;
+      }
     }
 
     if (system.isAndroid) {

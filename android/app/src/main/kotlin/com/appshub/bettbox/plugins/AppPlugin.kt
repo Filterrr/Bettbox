@@ -450,6 +450,7 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
             binding.addActivityResultListener(::onActivityResult)
             binding.addRequestPermissionsResultListener(::onRequestPermissionsResultListener)
         }
+        requestNotificationsPermission()
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
@@ -457,6 +458,7 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
     }
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
         activityRef = WeakReference(binding.activity)
+        requestNotificationsPermission()
     }
     override fun onDetachedFromActivity() {
         channel.invokeMethod("exit", null)

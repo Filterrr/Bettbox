@@ -467,7 +467,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             android.util.Log.e("VpnPlugin", "First start attempt failed: ${e.message}")
         }
 
-        if (fd == null || (currentOptions.enable && fd == 0)) {
+        if (fd == null || (currentOptions.enable && fd <= 0)) {
             if (retry) {
                 android.util.Log.w("VpnPlugin", "VPN establish failed, retrying...")
                 delay(300)
@@ -479,9 +479,9 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             }
         }
 
-        if (fd == null || (currentOptions.enable && fd == 0)) {
+        if (fd == null || (currentOptions.enable && fd <= 0)) {
             android.util.Log.e("VpnPlugin", "VPN start failed after all attempts")
-            GlobalState.runLock.withLock { GlobalState.updateRunState(RunState.STOP) }
+            handleStop(force = true)
             if (notifyOnFailure) {
                 ServicePlugin.notifyVpnStartFailed()
             }

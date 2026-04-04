@@ -47,6 +47,7 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
     override fun onCreate() {
         super.onCreate()
         GlobalState.initServiceEngine()
+        ensureForegroundStarted()
     }
 
     override suspend fun start(options: VpnOptions): Int = with(Builder()) {
@@ -96,7 +97,7 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         setBlocking(false)
         if (Build.VERSION.SDK_INT >= 29) setMetered(false)
         if (options.allowBypass) allowBypass()
-        setConfigureIntent(createMainActivityPendingIntent(1))
+        setConfigureIntent(createVpnConfigurePendingIntent())
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && options.systemProxy) {
             val proxyBypassList = (options.bypassDomain + LOCAL_PROXY_BYPASS_LIST).distinct()
@@ -109,7 +110,7 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         }
         GlobalState.markVpnStopped()
         Log.e(TAG, "Establish VPN rejected by system")
-        -1
+        0
     }
 
     private fun ensureForegroundStarted() {
@@ -206,12 +207,12 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        Log.d(TAG, "Task removed, keeping VPN service alive")
+        Log.d(TAG, "Task removed, stopping VPN service")
+        runCatching { VpnPlugin.handleStop(force = true) }
         super.onTaskRemoved(rootIntent)
     }
 
     override fun onRevoke() {
-        GlobalState.markVpnStopped()
         runCatching { VpnPlugin.handleStop() }
         super.onRevoke()
     }

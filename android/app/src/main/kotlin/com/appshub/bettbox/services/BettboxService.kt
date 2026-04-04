@@ -28,6 +28,7 @@ class BettboxService : Service(), BaseServiceInterface {
 
     override fun onCreate() {
         super.onCreate()
+        ensureForegroundStarted()
     }
 
     override fun stop() {
