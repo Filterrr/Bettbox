@@ -863,7 +863,12 @@ class AppController {
   Future<void> _handleNativeRunStateChanged(bool isRunning) async {
     _ref.read(nativeVpnRunningProvider.notifier).state = isRunning;
     if (isRunning) {
-      await globalState.updateStartTime();
+      final nativeStartTime = await clashLib?.getRunTime();
+      if (nativeStartTime != null) {
+        globalState.startTime = nativeStartTime;
+      } else {
+        globalState.startTime ??= DateTime.now();
+      }
       if (_ref.read(runTimeProvider) == null) {
         _ref.read(runTimeProvider.notifier).value = 0;
       }

@@ -179,7 +179,7 @@ object GlobalState {
         updateRunState(RunState.PENDING)
         startPendingTimeout()
         runLock.withLock {
-            getCurrentTilePlugin()?.handleStart() ?: initServiceEngine()
+            getCurrentTilePlugin()?.handleStart() ?: initServiceEngine(listOf("quick"))
         }
         return true
     }
@@ -230,9 +230,7 @@ object GlobalState {
                 FlutterInjector.instance().flutterLoader().findAppBundlePath(),
                 "_service"
             )
-            val defaultArgs = if (flutterEngine == null && !isCurrentlyStopping()) listOf("quick") else null
-            val args = flags ?: defaultArgs
-            serviceEngine?.dartExecutor?.executeDartEntrypoint(vpnService, args)
+            serviceEngine?.dartExecutor?.executeDartEntrypoint(vpnService, flags)
         }
     }
 
