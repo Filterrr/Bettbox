@@ -29,6 +29,13 @@ const defaultBypassDomain = [
   '192.168.*',
 ];
 
+NetworkProps _normalizeNetworkProps(NetworkProps props) {
+  if (!system.isAndroid) {
+    return props;
+  }
+  return props.copyWith(routeMode: RouteMode.bypassPrivate);
+}
+
 const defaultAppSettingProps = AppSettingProps();
 const defaultVpnProps = VpnProps();
 const defaultNetworkProps = NetworkProps();
@@ -147,7 +154,7 @@ abstract class VpnProps with _$VpnProps {
   const factory VpnProps({
     @Default(true) bool enable,
     @Default(false) bool systemProxy,
-    @Default(false) bool ipv6,
+    @Default(true) bool ipv6,
     @Default(false) bool allowBypass,
     @Default(RouteMode.config) RouteMode routeMode,
     @Default(true) bool dozeSuspend,
@@ -188,12 +195,14 @@ abstract class NetworkProps with _$NetworkProps {
   const factory NetworkProps({
     @Default(false) bool systemProxy,
     @Default(defaultBypassDomain) List<String> bypassDomain,
-    @Default(RouteMode.config) RouteMode routeMode,
+    @Default(RouteMode.bypassPrivate) RouteMode routeMode,
     @Default(true) bool autoSetSystemDns,
   }) = _NetworkProps;
 
   factory NetworkProps.fromJson(Map<String, Object?>? json) =>
-      json == null ? const NetworkProps() : _$NetworkPropsFromJson(json);
+      _normalizeNetworkProps(
+        json == null ? const NetworkProps() : _$NetworkPropsFromJson(json),
+      );
 }
 
 @freezed

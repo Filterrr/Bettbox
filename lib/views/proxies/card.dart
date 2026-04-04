@@ -32,6 +32,9 @@ class ProxyCard extends StatelessWidget {
   }
 
   Widget _buildDelayText(BuildContext context) {
+    if (!isDelayTestSupportedProxy(proxy)) {
+      return const SizedBox.shrink();
+    }
     return SizedBox(
       height: measure.labelSmallHeight,
       child: Consumer(

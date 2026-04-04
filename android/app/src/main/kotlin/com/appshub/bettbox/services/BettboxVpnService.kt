@@ -22,14 +22,32 @@ import com.appshub.bettbox.plugins.VpnPlugin
 class BettboxVpnService : VpnService(), BaseServiceInterface {
     companion object {
         private const val TAG = "BettboxVpnService"
+        private val LOCAL_PROXY_BYPASS_LIST = listOf(
+            "localhost",
+            "*.local",
+            "127.*",
+            "10.*",
+            "172.16.*",
+            "172.17.*",
+            "172.18.*",
+            "172.19.*",
+            "172.2*",
+            "172.30.*",
+            "172.31.*",
+            "192.168.*",
+        )
     }
 
     @Volatile
     private var isStopped = false
 
+    @Volatile
+    private var isForegroundStarted = false
+
     override fun onCreate() {
         super.onCreate()
         GlobalState.initServiceEngine()
+        ensureForegroundStarted()
     }
 
     override suspend fun start(options: VpnOptions): Int = with(Builder()) {
@@ -79,21 +97,40 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         setBlocking(false)
         if (Build.VERSION.SDK_INT >= 29) setMetered(false)
         if (options.allowBypass) allowBypass()
+        setConfigureIntent(createVpnConfigurePendingIntent())
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && options.systemProxy) {
-            setHttpProxy(ProxyInfo.buildDirectProxy("127.0.0.1", options.port, options.bypassDomain))
+            val proxyBypassList = (options.bypassDomain + LOCAL_PROXY_BYPASS_LIST).distinct()
+            setHttpProxy(ProxyInfo.buildDirectProxy("127.0.0.1", options.port, proxyBypassList))
         }
 
-        establish()?.detachFd()?.also { return it }
+        establish()?.detachFd()?.also {
+            GlobalState.markVpnEstablished()
+            return it
+        }
+        GlobalState.markVpnStopped()
         Log.e(TAG, "Establish VPN rejected by system")
-        -1
+        0
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int) = START_NOT_STICKY
+    private fun ensureForegroundStarted() {
+        if (isForegroundStarted) return
+        runCatching {
+            startForeground(createPlaceholderNotification())
+            isForegroundStarted = true
+        }.onFailure { Log.e(TAG, "Failed to start placeholder foreground: ${it.message}") }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        ensureForegroundStarted()
+        return START_NOT_STICKY
+    }
 
     override fun stop() {
         if (isStopped) return
         isStopped = true
+        isForegroundStarted = false
+        GlobalState.markVpnStopped()
 
         runCatching { Core.stopTun() }
             .onFailure { Log.e(TAG, "Failed to stop TUN: ${it.message}") }
@@ -110,9 +147,9 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         cachedBuilder = null
     }
 
-    private suspend fun notificationBuilder(): NotificationCompat.Builder {
+    private fun notificationBuilder(): NotificationCompat.Builder {
         if (cachedBuilder == null) {
-            cachedBuilder = createBettboxNotificationBuilder().await()
+            cachedBuilder = createBettboxNotificationBuilder()
         }
         return cachedBuilder!!
     }
@@ -141,6 +178,7 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
             builder.setContentTitle(spannable).setContentText(null).build()
         }
         this.startForeground(notification)
+        isForegroundStarted = true
     }
 
     override fun onTrimMemory(level: Int) {
@@ -166,6 +204,12 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
     override fun onUnbind(intent: Intent?): Boolean {
         super.onUnbind(intent)
         return true
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.d(TAG, "Task removed, stopping VPN service")
+        runCatching { VpnPlugin.handleStop(force = true) }
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onRevoke() {

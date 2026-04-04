@@ -17,6 +17,8 @@ class BettboxService : Service(), BaseServiceInterface {
 
     private var cachedBuilder: NotificationCompat.Builder? = null
     private val binder = LocalBinder()
+    @Volatile
+    private var isForegroundStarted = false
 
     inner class LocalBinder : Binder() {
         fun getService() = this@BettboxService
@@ -24,7 +26,13 @@ class BettboxService : Service(), BaseServiceInterface {
 
     override suspend fun start(options: VpnOptions) = 0
 
+    override fun onCreate() {
+        super.onCreate()
+        ensureForegroundStarted()
+    }
+
     override fun stop() {
+        isForegroundStarted = false
         stopSelf()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -35,8 +43,21 @@ class BettboxService : Service(), BaseServiceInterface {
         cachedBuilder = null
     }
 
-    private suspend fun notificationBuilder() =
-        cachedBuilder ?: createBettboxNotificationBuilder().await().also { cachedBuilder = it }
+    private fun notificationBuilder() =
+        cachedBuilder ?: createBettboxNotificationBuilder().also { cachedBuilder = it }
+
+    private fun ensureForegroundStarted() {
+        if (isForegroundStarted) return
+        runCatching {
+            startForeground(createPlaceholderNotification())
+            isForegroundStarted = true
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        ensureForegroundStarted()
+        return START_NOT_STICKY
+    }
 
     @SuppressLint("ForegroundServiceType")
     override suspend fun startForeground(title: String, content: String) {
@@ -63,6 +84,7 @@ class BettboxService : Service(), BaseServiceInterface {
             builder.setContentTitle(spannable).setContentText(null).build()
         }
         this.startForeground(notification)
+        isForegroundStarted = true
     }
 
     override fun onTrimMemory(level: Int) {

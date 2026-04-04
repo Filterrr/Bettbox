@@ -1,4 +1,5 @@
 {
+  "@@locale": "zh_CN",
   "rule": "规则",
   "global": "全局",
   "direct": "直连",
@@ -480,6 +481,8 @@
   "routeMode_config": "使用配置",
   "routeAddress": "路由地址",
   "routeAddressDesc": "配置监听路由地址",
+  "routeExcludeAddress": "排除地址",
+  "routeExcludeAddressDesc": "配置路由排除地址",
   "pleaseInputAdminPassword": "请输入管理员密码",
   "copyEnvVar": "复制环境变量",
   "memoryInfo": "内存信息",
@@ -579,6 +582,8 @@
   "import": "导入",
   "importFile": "通过文件导入",
   "importUrl": "通过URL导入",
+  "importFromCode": "通过代码导入",
+  "importFailed": "导入失败",
   "autoSetSystemDns": "自动设置系统DNS",
   "details": "{label}详情",
   "creationTime": "创建时间",

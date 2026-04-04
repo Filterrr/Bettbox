@@ -4,6 +4,19 @@ import 'package:bett_box/enum/enum.dart';
 import 'package:bett_box/models/models.dart';
 import 'package:bett_box/state.dart';
 
+const Set<String> _unsupportedDelayTestProxyKinds = {
+  'REJECT',
+  'REJECT-DROP',
+  'PASS',
+};
+
+bool isDelayTestSupportedProxy(Proxy proxy) {
+  final normalizedName = proxy.name.toUpperCase();
+  final normalizedType = proxy.type.toUpperCase();
+  return !_unsupportedDelayTestProxyKinds.contains(normalizedName) &&
+      !_unsupportedDelayTestProxyKinds.contains(normalizedType);
+}
+
 double get listHeaderHeight {
   final measure = globalState.measure;
   return 20 + measure.titleMediumHeight + 4 + measure.bodyMediumHeight;
@@ -21,6 +34,9 @@ double getItemHeight(ProxyCardType proxyCardType) {
 }
 
 Future<void> proxyDelayTest(Proxy proxy, [String? testUrl]) async {
+  if (!isDelayTestSupportedProxy(proxy)) {
+    return;
+  }
   final appController = globalState.appController;
   final state = appController.getProxyCardState(proxy.name);
   final url = appController.getRealTestUrl(state.testUrl.getSafeValue(testUrl ?? ''));
@@ -35,7 +51,14 @@ Future<void> proxyDelayTest(Proxy proxy, [String? testUrl]) async {
 
 Future<void> delayTest(List<Proxy> proxies, [String? testUrl]) async {
   final appController = globalState.appController;
-  final proxyNames = proxies.map((proxy) => proxy.name).toSet().toList();
+  final proxyNames = proxies
+      .where(isDelayTestSupportedProxy)
+      .map((proxy) => proxy.name)
+      .toSet()
+      .toList();
+  if (proxyNames.isEmpty) {
+    return;
+  }
   final concurrencyLimit = globalState.config.proxiesStyle.concurrencyLimit;
 
   // Create lazy task

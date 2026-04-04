@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
@@ -120,6 +119,25 @@ Future<void> _service(List<String> flags) async {
     final bootStart = flags.contains('boot');
     final clashLibHandler = ClashLibHandler();
 
+    Future<void> syncNotificationTexts() async {
+      final locale = globalState.config.appSetting.locale?.isNotEmpty == true
+          ? utils.getLocaleForString(globalState.config.appSetting.locale!)
+          : WidgetsBinding.instance.platformDispatcher.locale;
+      if (locale != null) {
+        await AppLocalizations.load(locale);
+      } else {
+        await AppLocalizations.load(const Locale('zh', 'CN'));
+      }
+      await vpn?.setNotificationTexts(
+        connectedTitle: appLocalizations.coreConnected,
+        connectedContent: appLocalizations.serviceRunning,
+        suspendedTitle: appLocalizations.coreSuspended,
+        suspendedContent: appLocalizations.smartAutoStopServiceRunning,
+      );
+    }
+
+    await syncNotificationTexts();
+
     tile?.addListener(
       _TileListenerWithService(
         onStart: () async {
@@ -137,34 +155,6 @@ Future<void> _service(List<String> flags) async {
         },
       ),
     );
-
-    vpn?.handleGetStartForegroundParams = () async {
-      if (AppLocalizations.currentOrNull == null) {
-        final locale = globalState.config.appSetting.locale?.isNotEmpty == true
-            ? utils.getLocaleForString(globalState.config.appSetting.locale!)
-            : WidgetsBinding.instance.platformDispatcher.locale;
-        if (locale != null) {
-          await AppLocalizations.load(locale);
-        }
-        if (AppLocalizations.currentOrNull == null) {
-          await AppLocalizations.load(const Locale('zh', 'CN'));
-        }
-      }
-
-      final isSmartStopped = await vpn?.isSmartStopped() ?? false;
-
-      if (isSmartStopped) {
-        return json.encode({
-          'title': appLocalizations.coreSuspended,
-          'content': appLocalizations.smartAutoStopServiceRunning,
-        });
-      }
-
-      return json.encode({
-        'title': appLocalizations.coreConnected,
-        'content': appLocalizations.serviceRunning,
-      });
-    };
 
     vpn?.addListener(
       _VpnListenerWithService(

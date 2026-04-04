@@ -473,7 +473,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "iconStyle": MessageLookupByLibrary.simpleMessage("Icon Style"),
     "import": MessageLookupByLibrary.simpleMessage("Import"),
+    "importFailed": MessageLookupByLibrary.simpleMessage("Import Failed"),
     "importFile": MessageLookupByLibrary.simpleMessage("Import from File"),
+    "importFromCode": MessageLookupByLibrary.simpleMessage("Import from Code"),
     "importFromURL": MessageLookupByLibrary.simpleMessage("Import from URL"),
     "importUrl": MessageLookupByLibrary.simpleMessage("Import from URL"),
     "infiniteTime": MessageLookupByLibrary.simpleMessage("Never Expires"),
@@ -868,6 +870,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "routeAddress": MessageLookupByLibrary.simpleMessage("Route Address"),
     "routeAddressDesc": MessageLookupByLibrary.simpleMessage(
       "Configure route listen address",
+    ),
+    "routeExcludeAddress": MessageLookupByLibrary.simpleMessage(
+      "Exclude Address",
+    ),
+    "routeExcludeAddressDesc": MessageLookupByLibrary.simpleMessage(
+      "Configure route exclude address",
     ),
     "routeMode": MessageLookupByLibrary.simpleMessage("Route Mode"),
     "routeMode_bypassPrivate": MessageLookupByLibrary.simpleMessage(

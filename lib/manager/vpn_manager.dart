@@ -1,6 +1,5 @@
 import 'package:bett_box/common/common.dart';
 import 'package:bett_box/enum/enum.dart';
-import 'package:bett_box/providers/app.dart';
 import 'package:bett_box/providers/state.dart';
 import 'package:bett_box/state.dart';
 import 'package:flutter/material.dart';
@@ -46,7 +45,7 @@ class _VpnContainerState extends ConsumerState<VpnManager> {
 
   void showTip() {
     debouncer.call(FunctionTag.vpnTip, () {
-      if (ref.read(runTimeProvider.notifier).isStart) {
+      if (ref.read(isCoreRunningProvider)) {
         globalState.showNotifier(
           appLocalizations.vpnTip,
           onAction: () async {

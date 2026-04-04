@@ -202,7 +202,7 @@ class GlobalState {
 
   void _scheduleBackgroundCleanup() {
     _backgroundCleanupTimer?.cancel();
-    _backgroundCleanupTimer = Timer(const Duration(minutes: 3), () {
+    _backgroundCleanupTimer = Timer(const Duration(minutes: 2), () {
       _backgroundCleanupTimer = null;
       if (!backgroundMode.value) {
         return;
@@ -214,9 +214,9 @@ class GlobalState {
   void cleanupBackgroundResources() async {
     final imageCache = PaintingBinding.instance.imageCache;
     imageCache.clearLiveImages();
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 1000));
     WidgetsBinding.instance.handleMemoryPressure();
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 1000));
     await clashCore.requestGc();
   }
 
@@ -319,14 +319,15 @@ class GlobalState {
     required Widget child,
     bool dismissible = true,
   }) async {
+    final context = navigatorKey.currentState!.context;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return await showModal<T>(
-      context: navigatorKey.currentState!.context,
+      context: context,
       configuration: FadeScaleTransitionConfiguration(
-        barrierColor: Colors.black38,
+        barrierColor: isDark ? const Color(0xCC000000) : const Color(0x99000000),
         barrierDismissible: dismissible,
       ),
       builder: (_) => child,
-      filter: commonFilter,
     );
   }
 
@@ -664,21 +665,6 @@ class GlobalState {
       }
     }
 
-    if (system.isDesktop &&
-        config.networkProps.routeMode == RouteMode.bypassPrivate) {
-      final privateNetworkRules = [
-        'IP-CIDR,127.0.0.0/8,DIRECT,no-resolve',
-        'IP-CIDR6,::1/128,DIRECT,no-resolve',
-        'IP-CIDR,10.0.0.0/8,DIRECT,no-resolve',
-        'IP-CIDR,172.16.0.0/12,DIRECT,no-resolve',
-        'IP-CIDR,192.168.0.0/16,DIRECT,no-resolve',
-        'IP-CIDR,169.254.0.0/16,DIRECT,no-resolve',
-        'IP-CIDR6,fd00::/8,DIRECT,no-resolve',
-        'IP-CIDR6,fe80::/10,DIRECT,no-resolve',
-      ];
-      rules = [...privateNetworkRules, ...rules];
-    }
-
     if (config.vpnProps.fcmOptimization) {
       final fcmRules = ['DOMAIN,mtalk.google.com,DIRECT'];
       rules = [...fcmRules, ...rules];
@@ -729,6 +715,13 @@ class GlobalState {
         Pointer() => runtime.convertValue<Map<String, dynamic>>(res),
         _ => Map<String, dynamic>.from(res.rawResult),
       } ?? config;
+    } catch (e) {
+      commonPrint.log('Script execution error: $e');
+      globalState.showMessage(
+        title: appLocalizations.script,
+        message: TextSpan(text: 'Error: $e'),
+      );
+      return config;
     } finally {
       runtime.dispose();
     }

@@ -27,6 +27,8 @@ import 'models/models.dart';
 import 'views/profiles/override_profile.dart';
 
 class AppController {
+  static bool _nativeEventCallbacksInitialized = false;
+
   int? lastProfileModified;
 
   final BuildContext context;
@@ -89,7 +91,7 @@ class AppController {
     commonPrint.log('restart core');
 
     try {
-      final wasRunning = _ref.read(runTimeProvider.notifier).isStart;
+      final wasRunning = _ref.read(isCoreRunningProvider);
       if (wasRunning) {
         await globalState.handleStop();
       }
@@ -169,7 +171,7 @@ class AppController {
         _ref.read(groupsProvider.notifier).value = groups;
         _ref.read(providersProvider.notifier).value = providers;
 
-        await Future.delayed(const Duration(seconds: 2));
+        await Future.delayed(const Duration(seconds: 5));
         if (version != _backgroundLoadVersion) return;
         await clashCore.requestGc();
       } catch (e) {
@@ -740,12 +742,28 @@ class AppController {
       }
     };
 
-    vpn_service.service?.addNativeEventCallback((method, arguments) async {
-      if (method == 'vpnStartFailed') {
-        globalState.showNotifier('Failed, Please try again later');
-        await updateStatus(false);
+    if (!_nativeEventCallbacksInitialized) {
+      _nativeEventCallbacksInitialized = true;
+      vpn_service.service?.addNativeEventCallback((method, arguments) async {
+        if (method == 'vpnStartFailed') {
+          globalState.showNotifier('Failed, Please try again later');
+          await updateStatus(false);
+          return;
+        }
+        if (method == 'runStateChanged' && system.isAndroid) {
+          await _handleNativeRunStateChanged(arguments == true);
+        }
+      });
+    }
+
+    if (system.isAndroid) {
+      final nativeRunning = await vpn_service.service?.getStatus();
+      if (nativeRunning == true) {
+        await _handleNativeRunStateChanged(true);
+      } else {
+        _ref.read(nativeVpnRunningProvider.notifier).state = false;
       }
-    });
+    }
 
     if (system.isAndroid) {
       await _initHighRefreshRateDefault();
@@ -816,7 +834,17 @@ class AppController {
         }
       }
     }
-    final shouldStart = globalState.isStart || _ref.read(appSettingProvider).autoRun;
+    if (system.isAndroid && globalState.isStart) {
+      if (_ref.read(runTimeProvider) == null) {
+        _ref.read(runTimeProvider.notifier).value = 0;
+      }
+      await globalState.startUpdateTasks([updateTraffic]);
+      addCheckIpNumDebounce();
+      _backgroundLoad();
+      return;
+    }
+
+    final shouldStart = _ref.read(appSettingProvider).autoRun;
 
     if (shouldStart) {
       try {
@@ -829,6 +857,30 @@ class AppController {
     } else {
       await applyProfile();
       addCheckIpNumDebounce();
+    }
+  }
+
+  Future<void> _handleNativeRunStateChanged(bool isRunning) async {
+    _ref.read(nativeVpnRunningProvider.notifier).state = isRunning;
+    if (isRunning) {
+      final nativeStartTime = await clashLib?.getRunTime();
+      if (nativeStartTime != null) {
+        globalState.startTime = nativeStartTime;
+      } else {
+        globalState.startTime ??= DateTime.now();
+      }
+      if (_ref.read(runTimeProvider) == null) {
+        _ref.read(runTimeProvider.notifier).value = 0;
+      }
+      await globalState.startUpdateTasks([updateTraffic]);
+      addCheckIpNumDebounce();
+      return;
+    }
+
+    globalState.startTime = null;
+    globalState.stopUpdateTasks();
+    if (_ref.read(runTimeProvider) != null) {
+      _ref.read(runTimeProvider.notifier).value = null;
     }
   }
 
@@ -1079,7 +1131,7 @@ class AppController {
   }
 
   void updateStart() {
-    updateStatus(!_ref.read(runTimeProvider.notifier).isStart);
+    updateStatus(!_ref.read(isCoreRunningProvider));
   }
 
   void updateCurrentSelectedMap(String groupName, String proxyName) {

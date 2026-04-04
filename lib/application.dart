@@ -24,17 +24,17 @@ class Application extends ConsumerStatefulWidget {
   ConsumerState<Application> createState() => ApplicationState();
 }
 
-class ApplicationState extends ConsumerState<Application>
-    with WidgetsBindingObserver {
+class ApplicationState extends ConsumerState<Application> {
   Timer? _autoUpdateGroupTaskTimer;
   Timer? _autoUpdateProfilesTaskTimer;
+  AppLifecycleListener? _appLifecycleListener;
 
   final _pageTransitionsTheme = const PageTransitionsTheme(
     builders: <TargetPlatform, PageTransitionsBuilder>{
-      TargetPlatform.android: CommonPageTransitionsBuilder(),
-      TargetPlatform.windows: CommonPageTransitionsBuilder(),
-      TargetPlatform.linux: CommonPageTransitionsBuilder(),
-      TargetPlatform.macOS: CommonPageTransitionsBuilder(),
+      TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
     },
   );
 
@@ -48,7 +48,17 @@ class ApplicationState extends ConsumerState<Application>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    _appLifecycleListener = AppLifecycleListener(
+      onStateChange: (_) => _syncAutoUpdateTasks(),
+      onResume: () {
+        _syncAutoUpdateTasks();
+        if (system.isAndroid &&
+            globalState.config.appSetting.enableHighRefreshRate) {
+          unawaited(_restoreHighRefreshRate());
+        }
+      },
+      onDetach: _syncAutoUpdateTasks,
+    );
     globalState.backgroundMode.addListener(_syncAutoUpdateTasks);
     _syncAutoUpdateTasks();
     globalState.appController = AppController(context, ref);
@@ -71,17 +81,6 @@ class ApplicationState extends ConsumerState<Application>
     globalState.appController.initLink();
     if (system.isAndroid) {
       app.initShortcuts();
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _syncAutoUpdateTasks();
-    if (state == AppLifecycleState.resumed) {
-      if (system.isAndroid &&
-          globalState.config.appSetting.enableHighRefreshRate) {
-        _restoreHighRefreshRate();
-      }
     }
   }
 
@@ -178,6 +177,7 @@ class ApplicationState extends ConsumerState<Application>
             );
             final themeProps = ref.watch(themeSettingProvider);
             final fontFamily = themeProps.useHarmonyFont ? 'HarmonyOS_Sans' : null;
+            final fontFamilyFallback = system.isAndroid ? const <String>['system-ui'] : null;
             
             return MaterialApp(
               debugShowCheckedModeBanner: false,
@@ -208,6 +208,7 @@ class ApplicationState extends ConsumerState<Application>
                   primaryColor: themeProps.primaryColor,
                 ),
                 fontFamily: fontFamily,
+                fontFamilyFallback: fontFamilyFallback,
               ),
               darkTheme: ThemeData(
                 useMaterial3: true,
@@ -217,6 +218,7 @@ class ApplicationState extends ConsumerState<Application>
                   primaryColor: themeProps.primaryColor,
                 ).toPureBlack(themeProps.pureBlack),
                 fontFamily: fontFamily,
+                fontFamilyFallback: fontFamilyFallback,
               ),
               home: child!,
             );
@@ -230,7 +232,8 @@ class ApplicationState extends ConsumerState<Application>
   @override
   void dispose() {
     globalState.backgroundMode.removeListener(_syncAutoUpdateTasks);
-    WidgetsBinding.instance.removeObserver(this);
+    _appLifecycleListener?.dispose();
+    _appLifecycleListener = null;
     linkManager.destroy();
     _autoUpdateGroupTaskTimer?.cancel();
     _autoUpdateProfilesTaskTimer?.cancel();

@@ -72,11 +72,15 @@ const presetNtpServers = [
   'time.cloudflare.com',
 ];
 
-final commonFilter = ImageFilter.blur(
-  sigmaX: 5,
-  sigmaY: 5,
-  tileMode: TileMode.mirror,
-);
+class CommonFilters {
+  static final ImageFilter blur = ImageFilter.blur(
+    sigmaX: 2,
+    sigmaY: 2,
+    tileMode: TileMode.mirror,
+  );
+}
+
+final commonFilter = CommonFilters.blur;
 
 const navigationItemListEquality = ListEquality<NavigationItem>();
 const trackerInfoListEquality = ListEquality<TrackerInfo>();
@@ -117,7 +121,7 @@ final mainIsolate = 'BettboxMainIsolate';
 final serviceIsolate = 'BettboxServiceIsolate';
 
 const defaultPrimaryColors = [
-  0xFF000000,
+  0xFF191919,
   0xFF1976D2,
   defaultPrimaryColor,
   0xFFE91E63,

@@ -25,8 +25,6 @@ class AppLocalizations {
     return _current!;
   }
 
-  static AppLocalizations? get currentOrNull => _current;
-
   static const AppLocalizationDelegate delegate = AppLocalizationDelegate();
 
   static Future<AppLocalizations> load(Locale locale) {
@@ -3881,6 +3879,26 @@ class AppLocalizations {
     );
   }
 
+  /// `Exclude Address`
+  String get routeExcludeAddress {
+    return Intl.message(
+      'Exclude Address',
+      name: 'routeExcludeAddress',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Configure route exclude address`
+  String get routeExcludeAddressDesc {
+    return Intl.message(
+      'Configure route exclude address',
+      name: 'routeExcludeAddressDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Please enter the admin password`
   String get pleaseInputAdminPassword {
     return Intl.message(
@@ -4651,6 +4669,26 @@ class AppLocalizations {
     return Intl.message(
       'Import from URL',
       name: 'importUrl',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Import from Code`
+  String get importFromCode {
+    return Intl.message(
+      'Import from Code',
+      name: 'importFromCode',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Import Failed`
+  String get importFailed {
+    return Intl.message(
+      'Import Failed',
+      name: 'importFailed',
       desc: '',
       args: [],
     );

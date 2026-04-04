@@ -34,6 +34,14 @@ class ServicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         fun notifyNetworkChanged() = notify("networkChanged")
         fun notifyQuickResponse() = notify("quickResponse")
         fun notifyVpnStartFailed() = notify("vpnStartFailed")
+        fun notifyRunStateChanged(isRunning: Boolean) {
+            mainHandler.post {
+                activeChannels.forEach { ch ->
+                    runCatching { ch.invokeMethod("runStateChanged", isRunning) }
+                        .onFailure { Log.e(TAG, "runStateChanged notify error: ${it.message}") }
+                }
+            }
+        }
     }
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -76,12 +84,11 @@ class ServicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 result.success(true)
             }
             "init" -> {
-                GlobalState.getCurrentAppPlugin()?.requestNotificationsPermission()
                 GlobalState.initServiceEngine()
                 result.success(true)
             }
             "isServiceEngineRunning" -> result.success(GlobalState.isServiceEngineRunning())
-            "status" -> result.success(GlobalState.currentRunState == RunState.START)
+            "status" -> result.success(GlobalState.resolveRunState() == RunState.START)
             "reconnectIpc" -> {
                 GlobalState.reconnectIpc()
                 result.success(true)

@@ -160,7 +160,7 @@ Map<String, dynamic> _$WindowPropsToJson(_WindowProps instance) =>
 _VpnProps _$VpnPropsFromJson(Map<String, dynamic> json) => _VpnProps(
   enable: json['enable'] as bool? ?? true,
   systemProxy: json['systemProxy'] as bool? ?? false,
-  ipv6: json['ipv6'] as bool? ?? false,
+  ipv6: json['ipv6'] as bool? ?? true,
   allowBypass: json['allowBypass'] as bool? ?? false,
   routeMode:
       $enumDecodeNullable(_$RouteModeEnumMap, json['routeMode']) ??
@@ -208,7 +208,7 @@ _NetworkProps _$NetworkPropsFromJson(Map<String, dynamic> json) =>
           defaultBypassDomain,
       routeMode:
           $enumDecodeNullable(_$RouteModeEnumMap, json['routeMode']) ??
-          RouteMode.config,
+          RouteMode.bypassPrivate,
       autoSetSystemDns: json['autoSetSystemDns'] as bool? ?? true,
     );
 

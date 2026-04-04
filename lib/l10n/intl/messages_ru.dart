@@ -483,7 +483,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "iconStyle": MessageLookupByLibrary.simpleMessage("Стиль иконок"),
     "import": MessageLookupByLibrary.simpleMessage("Импорт"),
+    "importFailed": MessageLookupByLibrary.simpleMessage("Ошибка импорта"),
     "importFile": MessageLookupByLibrary.simpleMessage("Импорт из файла"),
+    "importFromCode": MessageLookupByLibrary.simpleMessage("Импорт из кода"),
     "importFromURL": MessageLookupByLibrary.simpleMessage("Импорт из URL"),
     "importUrl": MessageLookupByLibrary.simpleMessage("Импорт по URL"),
     "infiniteTime": MessageLookupByLibrary.simpleMessage("Бессрочно"),
@@ -884,6 +886,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "routeAddress": MessageLookupByLibrary.simpleMessage("Адрес маршрутизации"),
     "routeAddressDesc": MessageLookupByLibrary.simpleMessage(
       "Настроить адрес прослушивания маршрутизации",
+    ),
+    "routeExcludeAddress": MessageLookupByLibrary.simpleMessage(
+      "Исключаемые адреса",
+    ),
+    "routeExcludeAddressDesc": MessageLookupByLibrary.simpleMessage(
+      "Настроить исключаемые адреса маршрутизации",
     ),
     "routeMode": MessageLookupByLibrary.simpleMessage("Режим маршрутизации"),
     "routeMode_bypassPrivate": MessageLookupByLibrary.simpleMessage(

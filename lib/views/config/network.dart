@@ -503,8 +503,11 @@ class RouteModeItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    if (system.isAndroid) {
+      return Container();
+    }
     final routeMode = ref.watch(
-      networkSettingProvider.select((state) => state.routeMode),
+      effectiveRouteModeProvider,
     );
     return ListItem<RouteMode>.options(
       title: Text(appLocalizations.routeMode),
@@ -532,38 +535,42 @@ class RouteAddressItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    if (!system.isDesktop) {
+      return Container();
+    }
     final bypassPrivate = ref.watch(
-      networkSettingProvider.select(
-        (state) => state.routeMode == RouteMode.bypassPrivate,
+      effectiveRouteModeProvider.select(
+        (state) => state == RouteMode.bypassPrivate,
       ),
     );
     if (bypassPrivate) {
       return Container();
     }
     return ListItem.open(
-      title: Text(appLocalizations.routeAddress),
-      subtitle: Text(appLocalizations.routeAddressDesc),
+      title: Text(appLocalizations.routeExcludeAddress),
+      subtitle: Text(appLocalizations.routeExcludeAddressDesc),
       delegate: OpenDelegate(
         blur: false,
         maxWidth: 360,
-        title: appLocalizations.routeAddress,
+        title: appLocalizations.routeExcludeAddress,
         widget: Consumer(
           builder: (_, ref, _) {
-            final routeAddress = ref.watch(
+            final routeExcludeAddress = ref.watch(
               patchClashConfigProvider.select(
-                (state) => state.tun.routeAddress,
+                (state) => state.tun.routeExcludeAddress,
               ),
             );
             return ListInputPage(
-              title: appLocalizations.routeAddress,
-              items: routeAddress,
+              title: appLocalizations.routeExcludeAddress,
+              items: routeExcludeAddress,
               titleBuilder: (item) => Text(item),
               onChange: (items) {
                 ref
                     .read(patchClashConfigProvider.notifier)
                     .updateState(
-                      (state) =>
-                          state.copyWith.tun(routeAddress: List.from(items)),
+                      (state) => state.copyWith.tun(
+                        routeExcludeAddress: List.from(items),
+                      ),
                     );
               },
             );
@@ -595,8 +602,8 @@ final networkItems = [
       const DnsHijackItem(),
       const TunStackItem(),
       const MtuItem(),
-      const RouteModeItem(),
-      if (!system.isDesktop) const RouteAddressItem(),
+      if (system.isDesktop) const RouteModeItem(),
+      if (system.isDesktop) const RouteAddressItem(),
     ],
   ),
 ];

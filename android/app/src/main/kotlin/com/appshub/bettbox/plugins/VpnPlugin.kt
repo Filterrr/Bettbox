@@ -10,14 +10,13 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
 import android.os.IBinder
+import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import com.appshub.bettbox.BettboxApplication
 import com.appshub.bettbox.GlobalState
 import com.appshub.bettbox.RunState
 import com.appshub.bettbox.core.Core
-import com.appshub.bettbox.extensions.awaitResult
 import com.appshub.bettbox.extensions.resolveDns
-import com.appshub.bettbox.models.StartForegroundParams
 import com.appshub.bettbox.models.VpnOptions
 import com.appshub.bettbox.modules.SuspendModule
 import com.appshub.bettbox.services.BaseServiceInterface
@@ -30,19 +29,24 @@ import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import java.util.Collections
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetSocketAddress
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.withLock
 
 data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
+    data class NotificationTextCache(
+        val connectedTitle: String,
+        val connectedContent: String,
+        val suspendedTitle: String,
+        val suspendedContent: String,
+    )
+
     private lateinit var flutterMethodChannel: MethodChannel
     private var bettBoxService: BaseServiceInterface? = null
     private var options: VpnOptions? = null
@@ -52,7 +56,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
     private var job = SupervisorJob()
     private var scope = CoroutineScope(Dispatchers.Default + job as kotlin.coroutines.CoroutineContext)
-    private var lastStartForegroundParams: StartForegroundParams? = null
+    private var notificationTextCache: NotificationTextCache? = null
     private val uidPageNameMap = ConcurrentHashMap<Int, String>()
     private var suspendModule: SuspendModule? = null
 
@@ -161,9 +165,25 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 quickResponseEnabled = call.argument<Boolean>("enabled") ?: false
                 result.success(true)
             }
+            "setNotificationTexts" -> {
+                val connectedTitle = call.argument<String>("connectedTitle").orEmpty()
+                val connectedContent = call.argument<String>("connectedContent").orEmpty()
+                val suspendedTitle = call.argument<String>("suspendedTitle").orEmpty()
+                val suspendedContent = call.argument<String>("suspendedContent").orEmpty()
+                notificationTextCache = NotificationTextCache(
+                    connectedTitle = connectedTitle,
+                    connectedContent = connectedContent,
+                    suspendedTitle = suspendedTitle,
+                    suspendedContent = suspendedContent,
+                )
+                if (GlobalState.resolveRunState() == RunState.START || GlobalState.isSmartStopped) {
+                    scope.launch { startForeground() }
+                }
+                result.success(true)
+            }
 
             "status" -> {
-                result.success(GlobalState.currentRunState == RunState.START)
+                result.success(getStatus())
             }
 
             else -> {
@@ -317,49 +337,26 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             GlobalState.currentRunState == RunState.START || GlobalState.isSmartStopped
         }
         if (!shouldUpdate) return
-        val data = try {
-            withTimeoutOrNull(1200L) {
-                flutterMethodChannel.awaitResult<String>("getStartForegroundParams")
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("VpnPlugin", "getStartForegroundParams timeout: ${e.message}")
-            null
+        val cache = notificationTextCache ?: return
+        val (title, content) = if (GlobalState.isSmartStopped) {
+            cache.suspendedTitle to cache.suspendedContent
+        } else {
+            cache.connectedTitle to cache.connectedContent
         }
-
-        val startForegroundParams = try {
-            data?.let { Gson().fromJson(it, StartForegroundParams::class.java) }
+        try {
+            bettBoxService?.startForeground(title, content)
         } catch (e: Exception) {
-            android.util.Log.e("VpnPlugin", "Failed to parse StartForegroundParams: ${e.message}")
-            null
-        } ?: lastStartForegroundParams ?: StartForegroundParams(title = "", content = "")
-
-        val shouldNotify = GlobalState.runLock.withLock {
-            if (lastStartForegroundParams != startForegroundParams) {
-                lastStartForegroundParams = startForegroundParams
-                true
-            } else {
-                false
-            }
-        }
-        if (shouldNotify) {
-            try {
-                bettBoxService?.startForeground(
-                    startForegroundParams.title,
-                    startForegroundParams.content,
-                )
-            } catch (e: Exception) {
-                android.util.Log.e("VpnPlugin", "startForeground error: ${e.message}")
-            }
+            android.util.Log.e("VpnPlugin", "startForeground error: ${e.message}")
         }
     }
 
     fun updateNotificationIcon() {
         scope.launch {
             runCatching {
-                lastStartForegroundParams?.let { params ->
+                notificationTextCache?.let {
                     (bettBoxService as? BettboxService)?.resetNotificationBuilder()
                     (bettBoxService as? BettboxVpnService)?.resetNotificationBuilder()
-                    bettBoxService?.startForeground(params.title, params.content)
+                    startForeground()
                 }
             }.onFailure {
                 android.util.Log.e("VpnPlugin", "updateNotificationIcon error: ${it.message}")
@@ -369,7 +366,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
     fun getStatus(): Boolean {
         return GlobalState.runLock.withLock {
-            GlobalState.currentRunState == RunState.START && bettBoxService != null
+            GlobalState.resolveRunState() == RunState.START
         }
     }
 
@@ -414,8 +411,8 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         GlobalState.updateRunState(RunState.STOP)
                         return@withLock false
                     }
+                    GlobalState.markVpnStartInitiated()
                     GlobalState.updateRunState(RunState.START)
-                    lastStartForegroundParams = null
                     true
                 }
 
@@ -444,7 +441,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             android.util.Log.e("VpnPlugin", "First start attempt failed: ${e.message}")
         }
 
-        if (fd == null || (currentOptions.enable && fd == 0)) {
+        if (fd == null || (currentOptions.enable && fd <= 0)) {
             if (retry) {
                 android.util.Log.w("VpnPlugin", "VPN establish failed, retrying...")
                 delay(300)
@@ -456,9 +453,9 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             }
         }
 
-        if (fd == null || (currentOptions.enable && fd == 0)) {
+        if (fd == null || (currentOptions.enable && fd <= 0)) {
             android.util.Log.e("VpnPlugin", "VPN start failed after all attempts")
-            GlobalState.runLock.withLock { GlobalState.updateRunState(RunState.STOP) }
+            handleStop(force = true)
             if (notifyOnFailure) {
                 ServicePlugin.notifyVpnStartFailed()
             }
@@ -522,7 +519,6 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             if (!force && GlobalState.currentRunState == RunState.STOP) return
             GlobalState.updateIsStopping(true)
             GlobalState.updateRunState(RunState.STOP)
-            lastStartForegroundParams = null
             suspendModule?.uninstall()
             suspendModule = null
             Core.stopTun()
@@ -587,8 +583,8 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     return@withLock false
                 }
 
+                GlobalState.markVpnStartInitiated()
                 GlobalState.updateRunState(RunState.START)
-                lastStartForegroundParams = null
                 true
             }
             if (!startAllowed) return@launch
@@ -610,6 +606,11 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 BettboxApplication.getAppContext(),
                 if (options?.enable == true) BettboxVpnService::class.java else BettboxService::class.java
             )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(BettboxApplication.getAppContext(), intent)
+            } else {
+                BettboxApplication.getAppContext().startService(intent)
+            }
             val res = BettboxApplication.getAppContext().bindService(intent, connection, Context.BIND_AUTO_CREATE)
             if (!res) {
                 isBinding.set(false)

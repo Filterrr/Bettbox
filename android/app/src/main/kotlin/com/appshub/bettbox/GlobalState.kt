@@ -14,10 +14,8 @@ import io.flutter.plugins.GeneratedPluginRegistrant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -57,6 +55,9 @@ object GlobalState {
     @Volatile
     var isStopping = false
 
+    @Volatile
+    private var vpnServiceRunning: Boolean? = false
+
     fun updateRunState(newState: RunState) {
         if (newState != RunState.PENDING) {
             pendingTimeoutJob?.cancel()
@@ -64,6 +65,33 @@ object GlobalState {
         }
         currentRunState = newState
         runState.postValueSafe(newState)
+    }
+
+    fun markVpnStartInitiated() {
+        vpnServiceRunning = null
+    }
+
+    fun markVpnEstablished() {
+        vpnServiceRunning = true
+        updateRunState(RunState.START)
+        ServicePlugin.notifyRunStateChanged(true)
+    }
+
+    fun markVpnStopped() {
+        vpnServiceRunning = false
+        updateRunState(RunState.STOP)
+        ServicePlugin.notifyRunStateChanged(false)
+    }
+
+    fun resolveRunState(): RunState {
+        if (currentRunState == RunState.PENDING) {
+            return RunState.PENDING
+        }
+        return when (vpnServiceRunning) {
+            true -> RunState.START
+            false -> RunState.STOP
+            null -> currentRunState
+        }
     }
 
     private fun MutableLiveData<RunState>.postValueSafe(value: RunState) = try {
@@ -123,8 +151,7 @@ object GlobalState {
     }
 
     fun syncStatus() {
-        val status = VpnPlugin.getStatus()
-        updateRunState(if (status) RunState.START else RunState.STOP)
+        updateRunState(resolveRunState())
     }
 
     suspend fun getText(text: String): String = getCurrentAppPlugin()?.getText(text) ?: ""
@@ -152,7 +179,7 @@ object GlobalState {
         updateRunState(RunState.PENDING)
         startPendingTimeout()
         runLock.withLock {
-            getCurrentTilePlugin()?.handleStart() ?: initServiceEngine()
+            getCurrentTilePlugin()?.handleStart() ?: initServiceEngine(listOf("quick"))
         }
         return true
     }
@@ -203,9 +230,7 @@ object GlobalState {
                 FlutterInjector.instance().flutterLoader().findAppBundlePath(),
                 "_service"
             )
-            val defaultArgs = if (flutterEngine == null && !isCurrentlyStopping()) listOf("quick") else null
-            val args = flags ?: defaultArgs
-            serviceEngine?.dartExecutor?.executeDartEntrypoint(vpnService, args)
+            serviceEngine?.dartExecutor?.executeDartEntrypoint(vpnService, flags)
         }
     }
 

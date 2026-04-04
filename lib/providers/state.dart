@@ -12,6 +12,16 @@ import 'config.dart';
 
 part 'generated/state.g.dart';
 
+final nativeVpnRunningProvider = StateProvider<bool?>((ref) => null);
+
+final isCoreRunningProvider = Provider<bool>((ref) {
+  final nativeRunning = ref.watch(nativeVpnRunningProvider);
+  if (system.isAndroid && nativeRunning != null) {
+    return nativeRunning;
+  }
+  return ref.watch(runTimeProvider.select((state) => state != null));
+});
+
 @riverpod
 Config configState(Ref ref) {
   final themeProps = ref.watch(themeSettingProvider);
@@ -43,6 +53,16 @@ Config configState(Ref ref) {
     patchClashConfig: patchClashConfig,
   );
 }
+
+final effectiveRouteModeProvider = Provider<RouteMode>((ref) {
+  final routeMode = ref.watch(
+    networkSettingProvider.select((state) => state.routeMode),
+  );
+  if (system.isAndroid) {
+    return RouteMode.bypassPrivate;
+  }
+  return routeMode;
+});
 
 @riverpod
 GroupsState currentGroupsState(Ref ref) {
@@ -99,9 +119,7 @@ NavigationItemsState currentNavigationItemsState(Ref ref) {
 @riverpod
 CoreState coreState(Ref ref) {
   final vpnProps = ref.watch(vpnSettingProvider);
-  final routeMode = ref.watch(
-    networkSettingProvider.select((state) => state.routeMode),
-  );
+  final routeMode = ref.watch(effectiveRouteModeProvider);
   final currentProfile = ref.watch(currentProfileProvider);
   final onlyStatisticsProxy = ref.watch(appSettingProvider).onlyStatisticsProxy;
   return CoreState(
@@ -113,9 +131,7 @@ CoreState coreState(Ref ref) {
 
 @riverpod
 UpdateParams updateParams(Ref ref) {
-  final routeMode = ref.watch(
-    networkSettingProvider.select((state) => state.routeMode),
-  );
+  final routeMode = ref.watch(effectiveRouteModeProvider);
   return ref.watch(
     patchClashConfigProvider.select(
       (state) => UpdateParams(
@@ -140,7 +156,7 @@ UpdateParams updateParams(Ref ref) {
 
 @riverpod
 ProxyState proxyState(Ref ref) {
-  final isStart = ref.watch(runTimeProvider.select((state) => state != null));
+  final isStart = ref.watch(isCoreRunningProvider);
   final vm2 = ref.watch(
     networkSettingProvider.select(
       (state) => VM2(a: state.systemProxy, b: state.bypassDomain),
@@ -162,7 +178,7 @@ final wakelockStateProvider = StateProvider<bool>((ref) => false);
 
 @riverpod
 Future<TrayState> trayState(Ref ref) async {
-  final isStart = ref.watch(runTimeProvider.select((state) => state != null));
+  final isStart = ref.watch(isCoreRunningProvider);
   final networkProps = ref.watch(networkSettingProvider);
   final clashConfig = ref.watch(patchClashConfigProvider);
   final appSetting = ref.watch(appSettingProvider);
@@ -679,7 +695,7 @@ Brightness currentBrightness(Ref ref) {
 
 @riverpod
 VM2<bool, bool> autoSetSystemDnsState(Ref ref) {
-  final isStart = ref.watch(runTimeProvider.select((state) => state != null));
+  final isStart = ref.watch(isCoreRunningProvider);
   final realTunEnable = ref.watch(realTunEnableProvider);
   final autoSetSystemDns = ref.watch(
     networkSettingProvider.select((state) => state.autoSetSystemDns),

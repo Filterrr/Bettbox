@@ -54,7 +54,7 @@ final vpnSettingProvider =
     );
 
 typedef _$VpnSetting = AutoDisposeNotifier<VpnProps>;
-String _$networkSettingHash() => r'5a30d4cbfaba94cc29ad08dc1771ebb368b4ba14';
+String _$networkSettingHash() => r'407e54c27b323210aeb2fde759c69793376deed4';
 
 /// See also [NetworkSetting].
 @ProviderFor(NetworkSetting)
