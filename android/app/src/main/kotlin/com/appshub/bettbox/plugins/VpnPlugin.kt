@@ -164,7 +164,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             }
 
             "status" -> {
-                result.success(GlobalState.currentRunState == RunState.START)
+                result.success(getStatus())
             }
 
             else -> {
@@ -370,7 +370,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
     fun getStatus(): Boolean {
         return GlobalState.runLock.withLock {
-            GlobalState.currentRunState == RunState.START && bettBoxService != null
+            GlobalState.resolveRunState() == RunState.START
         }
     }
 
@@ -417,7 +417,6 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     }
                     GlobalState.updateRunState(RunState.START)
                     lastStartForegroundParams = null
-                    scope.launch { startForegroundImmediately() }
                     true
                 }
 
@@ -428,14 +427,6 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 android.util.Log.e("VpnPlugin", "Fatal error in start flow: ${e.message}")
                 GlobalState.updateRunState(RunState.STOP)
             }
-        }
-    }
-
-    private suspend fun startForegroundImmediately() {
-        runCatching {
-            bettBoxService?.startForeground("Bettbox", "")
-        }.onFailure {
-            android.util.Log.e("VpnPlugin", "Immediate foreground start failed: ${it.message}")
         }
     }
 

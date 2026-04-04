@@ -81,7 +81,7 @@ class ServicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 result.success(true)
             }
             "isServiceEngineRunning" -> result.success(GlobalState.isServiceEngineRunning())
-            "status" -> result.success(GlobalState.currentRunState == RunState.START)
+            "status" -> result.success(GlobalState.resolveRunState() == RunState.START)
             "reconnectIpc" -> {
                 GlobalState.reconnectIpc()
                 result.success(true)

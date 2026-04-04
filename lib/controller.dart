@@ -816,7 +816,17 @@ class AppController {
         }
       }
     }
-    final shouldStart = globalState.isStart || _ref.read(appSettingProvider).autoRun;
+    if (system.isAndroid && globalState.isStart) {
+      if (_ref.read(runTimeProvider) == null) {
+        _ref.read(runTimeProvider.notifier).value = 0;
+      }
+      await globalState.startUpdateTasks([updateTraffic]);
+      addCheckIpNumDebounce();
+      _backgroundLoad();
+      return;
+    }
+
+    final shouldStart = _ref.read(appSettingProvider).autoRun;
 
     if (shouldStart) {
       try {

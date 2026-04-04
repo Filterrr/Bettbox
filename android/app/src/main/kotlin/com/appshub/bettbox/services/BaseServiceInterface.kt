@@ -7,18 +7,15 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.appshub.bettbox.GlobalState
 import com.appshub.bettbox.R
 import com.appshub.bettbox.models.VpnOptions
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import android.content.ComponentName
-import android.content.Intent
 
 interface BaseServiceInterface {
     suspend fun start(options: VpnOptions): Int
@@ -26,8 +23,15 @@ interface BaseServiceInterface {
     suspend fun startForeground(title: String, content: String)
 }
 
-fun Service.createBettboxNotificationBuilder(): Deferred<NotificationCompat.Builder> =
-    CoroutineScope(Dispatchers.Main).async {
+fun Service.createPlaceholderNotification(): Notification {
+    ensureNotificationChannel()
+    return createBettboxNotificationBuilder().apply {
+        setContentTitle("Bettbox")
+        setContentText(null)
+    }.build()
+}
+
+fun Service.createBettboxNotificationBuilder(): NotificationCompat.Builder {
         val defaultComponent = ComponentName(packageName, "com.appshub.bettbox.MainActivity")
         val lightComponent = ComponentName(packageName, "com.appshub.bettbox.MainActivityLight")
 
@@ -61,9 +65,9 @@ fun Service.createBettboxNotificationBuilder(): Deferred<NotificationCompat.Buil
         } else {
             PendingIntent.FLAG_UPDATE_CURRENT
         }
-        val pendingIntent = PendingIntent.getActivity(this@createBettboxNotificationBuilder, 0, intent, flags)
+        val pendingIntent = PendingIntent.getActivity(this, 0, intent, flags)
 
-        NotificationCompat.Builder(this@createBettboxNotificationBuilder, GlobalState.NOTIFICATION_CHANNEL).apply {
+        return NotificationCompat.Builder(this, GlobalState.NOTIFICATION_CHANNEL).apply {
             setSmallIcon(R.drawable.ic)
             setContentTitle("Bettbox")
             setContentIntent(pendingIntent)
@@ -75,7 +79,7 @@ fun Service.createBettboxNotificationBuilder(): Deferred<NotificationCompat.Buil
             setShowWhen(false)
             setOnlyAlertOnce(true)
         }
-    }
+}
 
 fun Service.ensureNotificationChannel() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -91,20 +95,32 @@ fun Service.ensureNotificationChannel() {
 fun Service.startForeground(notification: Notification) {
     ensureNotificationChannel()
 
-    val type = if (Build.VERSION.SDK_INT >= 34) {
-        1024
-    } else {
-        0
-    }
-
     runCatching {
-        if (type != 0) {
-            startForeground(GlobalState.NOTIFICATION_ID, notification, type)
-        } else {
-            startForeground(GlobalState.NOTIFICATION_ID, notification)
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                startForeground(
+                    GlobalState.NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+                )
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
+                startForeground(
+                    GlobalState.NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST,
+                )
+            }
+            else -> {
+                startForeground(GlobalState.NOTIFICATION_ID, notification)
+            }
         }
     }.onFailure {
         android.util.Log.e("BaseServiceInterface", "startForeground failed: ${it.message}")
-        startForeground(GlobalState.NOTIFICATION_ID, notification)
+        runCatching {
+            startForeground(GlobalState.NOTIFICATION_ID, notification)
+        }.onFailure { fallback ->
+            android.util.Log.e("BaseServiceInterface", "fallback startForeground failed: ${fallback.message}")
+        }
     }
 }

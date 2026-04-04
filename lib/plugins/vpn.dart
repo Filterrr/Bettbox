@@ -21,8 +21,10 @@ class Vpn {
       switch (call.method) {
         case 'gc':
           clashCore.requestGc();
+          return null;
         case 'closeConnections':
           clashCore.closeConnections();
+          return null;
         case 'getStartForegroundParams':
           return handleGetStartForegroundParams?.call() ?? '';
         case 'status':
@@ -31,7 +33,9 @@ class Vpn {
           for (final listener in _listeners) {
             listener.onDnsChanged(call.arguments as String);
           }
+          return null;
         default:
+          return null;
       }
     });
   }

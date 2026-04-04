@@ -41,6 +41,9 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
     @Volatile
     private var isStopped = false
 
+    @Volatile
+    private var isForegroundStarted = false
+
     override fun onCreate() {
         super.onCreate()
         GlobalState.initServiceEngine()
@@ -104,11 +107,23 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         -1
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int) = START_NOT_STICKY
+    private fun ensureForegroundStarted() {
+        if (isForegroundStarted) return
+        runCatching {
+            startForeground(createPlaceholderNotification())
+            isForegroundStarted = true
+        }.onFailure { Log.e(TAG, "Failed to start placeholder foreground: ${it.message}") }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        ensureForegroundStarted()
+        return START_NOT_STICKY
+    }
 
     override fun stop() {
         if (isStopped) return
         isStopped = true
+        isForegroundStarted = false
 
         runCatching { Core.stopTun() }
             .onFailure { Log.e(TAG, "Failed to stop TUN: ${it.message}") }
@@ -125,9 +140,9 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         cachedBuilder = null
     }
 
-    private suspend fun notificationBuilder(): NotificationCompat.Builder {
+    private fun notificationBuilder(): NotificationCompat.Builder {
         if (cachedBuilder == null) {
-            cachedBuilder = createBettboxNotificationBuilder().await()
+            cachedBuilder = createBettboxNotificationBuilder()
         }
         return cachedBuilder!!
     }
@@ -156,6 +171,7 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
             builder.setContentTitle(spannable).setContentText(null).build()
         }
         this.startForeground(notification)
+        isForegroundStarted = true
     }
 
     override fun onTrimMemory(level: Int) {

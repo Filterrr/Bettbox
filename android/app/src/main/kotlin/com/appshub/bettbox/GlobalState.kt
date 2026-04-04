@@ -14,10 +14,8 @@ import io.flutter.plugins.GeneratedPluginRegistrant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -65,6 +63,8 @@ object GlobalState {
         currentRunState = newState
         runState.postValueSafe(newState)
     }
+
+    fun resolveRunState(): RunState = currentRunState
 
     private fun MutableLiveData<RunState>.postValueSafe(value: RunState) = try {
         if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -123,8 +123,7 @@ object GlobalState {
     }
 
     fun syncStatus() {
-        val status = VpnPlugin.getStatus()
-        updateRunState(if (status) RunState.START else RunState.STOP)
+        updateRunState(resolveRunState())
     }
 
     suspend fun getText(text: String): String = getCurrentAppPlugin()?.getText(text) ?: ""

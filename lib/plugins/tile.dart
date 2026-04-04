@@ -25,13 +25,27 @@ class Tile {
   Future<void> _methodCallHandler(MethodCall call) async {
     switch (call.method) {
       case 'start':
-        for (final l in _listeners) { l.onStart(); }
+        for (final l in _listeners) {
+          l.onStart();
+        }
+        return;
       case 'stop':
-        for (final l in _listeners) { l.onStop(); }
+        for (final l in _listeners) {
+          l.onStop();
+        }
+        return;
       case 'detached':
-        for (final l in _listeners) { l.onDetached(); }
+        for (final l in _listeners) {
+          l.onDetached();
+        }
+        return;
       case 'reconnectIpc':
-        for (final l in _listeners) { l.onReconnectIpc(); }
+        for (final l in _listeners) {
+          l.onReconnectIpc();
+        }
+        return;
+      default:
+        return;
     }
   }
 
