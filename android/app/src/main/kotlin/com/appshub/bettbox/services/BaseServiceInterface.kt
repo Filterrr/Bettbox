@@ -31,42 +31,48 @@ fun Service.createPlaceholderNotification(): Notification {
     }.build()
 }
 
+private fun Service.resolveMainActivityComponent(): ComponentName {
+    val defaultComponent = ComponentName(packageName, "com.appshub.bettbox.MainActivity")
+    val lightComponent = ComponentName(packageName, "com.appshub.bettbox.MainActivityLight")
+
+    val defaultState = runCatching { packageManager.getComponentEnabledSetting(defaultComponent) }
+        .getOrDefault(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
+    val lightState = runCatching { packageManager.getComponentEnabledSetting(lightComponent) }
+        .getOrDefault(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
+
+    return when {
+        lightState == PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> lightComponent
+        lightState == PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> defaultComponent
+        defaultState == PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> defaultComponent
+        defaultState == PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> lightComponent
+        else -> runCatching {
+            packageManager.getActivityInfo(lightComponent, 0)
+                .takeIf { it.enabled }?.let { lightComponent }
+        }.getOrNull() ?: defaultComponent
+    }
+}
+
+fun Service.createMainActivityPendingIntent(requestCode: Int = 0): PendingIntent {
+    val targetComponent = resolveMainActivityComponent()
+    android.util.Log.d("Notification", "Using ${targetComponent.className}")
+
+    val intent = Intent().apply {
+        component = targetComponent
+        action = Intent.ACTION_MAIN
+        addCategory(Intent.CATEGORY_LAUNCHER)
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+    }
+
+    val flags = if (Build.VERSION.SDK_INT >= 31) {
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    } else {
+        PendingIntent.FLAG_UPDATE_CURRENT
+    }
+    return PendingIntent.getActivity(this, requestCode, intent, flags)
+}
+
 fun Service.createBettboxNotificationBuilder(): NotificationCompat.Builder {
-        val defaultComponent = ComponentName(packageName, "com.appshub.bettbox.MainActivity")
-        val lightComponent = ComponentName(packageName, "com.appshub.bettbox.MainActivityLight")
-
-        val defaultState = runCatching { packageManager.getComponentEnabledSetting(defaultComponent) }
-            .getOrDefault(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
-        val lightState = runCatching { packageManager.getComponentEnabledSetting(lightComponent) }
-            .getOrDefault(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
-
-        val targetComponent = when {
-            lightState == PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> lightComponent
-            lightState == PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> defaultComponent
-            defaultState == PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> defaultComponent
-            defaultState == PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> lightComponent
-            else -> runCatching {
-                packageManager.getActivityInfo(lightComponent, 0)
-                    .takeIf { it.enabled }?.let { lightComponent }
-            }.getOrNull() ?: defaultComponent
-        }
-
-        android.util.Log.d("Notification", "Using ${targetComponent.className}")
-
-        val intent = Intent().apply {
-            component = targetComponent
-            action = Intent.ACTION_MAIN
-            addCategory(Intent.CATEGORY_LAUNCHER)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-
-        val flags = if (Build.VERSION.SDK_INT >= 31) {
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
-        val pendingIntent = PendingIntent.getActivity(this, 0, intent, flags)
-
+        val pendingIntent = createMainActivityPendingIntent()
         return NotificationCompat.Builder(this, GlobalState.NOTIFICATION_CHANNEL).apply {
             setSmallIcon(R.drawable.ic)
             setContentTitle("Bettbox")
@@ -98,10 +104,15 @@ fun Service.startForeground(notification: Notification) {
     runCatching {
         when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                val foregroundServiceType = if (this is android.net.VpnService) {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED
+                } else {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                }
                 startForeground(
                     GlobalState.NOTIFICATION_ID,
                     notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+                    foregroundServiceType,
                 )
             }
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {

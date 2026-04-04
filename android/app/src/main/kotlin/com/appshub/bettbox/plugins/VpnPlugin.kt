@@ -54,6 +54,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private var job = SupervisorJob()
     private var scope = CoroutineScope(Dispatchers.Default + job as kotlin.coroutines.CoroutineContext)
     private var lastStartForegroundParams: StartForegroundParams? = null
+    private var foregroundRefreshJob: Job? = null
     private val uidPageNameMap = ConcurrentHashMap<Int, String>()
     private var suspendModule: SuspendModule? = null
 
@@ -313,7 +314,15 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         }
     }
 
-    private suspend fun startForeground() {
+    private fun scheduleForegroundRefresh(attempt: Int) {
+        foregroundRefreshJob?.cancel()
+        foregroundRefreshJob = scope.launch {
+            delay((300L * (attempt + 1)).coerceAtMost(1500L))
+            startForeground(attempt)
+        }
+    }
+
+    private suspend fun startForeground(attempt: Int = 0) {
         val shouldUpdate = GlobalState.runLock.withLock {
             GlobalState.currentRunState == RunState.START || GlobalState.isSmartStopped
         }
@@ -327,16 +336,27 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             null
         }
 
-        val startForegroundParams = try {
+        val parsedParams = try {
             data?.let { Gson().fromJson(it, StartForegroundParams::class.java) }
         } catch (e: Exception) {
             android.util.Log.e("VpnPlugin", "Failed to parse StartForegroundParams: ${e.message}")
             null
-        } ?: lastStartForegroundParams ?: StartForegroundParams(title = "", content = "")
+        }
+
+        val startForegroundParams = parsedParams ?: lastStartForegroundParams
+        if (startForegroundParams == null) {
+            if (attempt < 5) {
+                android.util.Log.d("VpnPlugin", "Foreground params unavailable, scheduling retry #${attempt + 1}")
+                scheduleForegroundRefresh(attempt + 1)
+            }
+            return
+        }
 
         val shouldNotify = GlobalState.runLock.withLock {
-            if (lastStartForegroundParams != startForegroundParams) {
+            if (parsedParams != null && lastStartForegroundParams != startForegroundParams) {
                 lastStartForegroundParams = startForegroundParams
+                true
+            } else if (parsedParams == null && attempt > 0) {
                 true
             } else {
                 false
@@ -416,6 +436,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         return@withLock false
                     }
                     GlobalState.updateRunState(RunState.START)
+                    foregroundRefreshJob?.cancel()
                     lastStartForegroundParams = null
                     true
                 }
@@ -523,6 +544,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             if (!force && GlobalState.currentRunState == RunState.STOP) return
             GlobalState.updateIsStopping(true)
             GlobalState.updateRunState(RunState.STOP)
+            foregroundRefreshJob?.cancel()
             lastStartForegroundParams = null
             suspendModule?.uninstall()
             suspendModule = null
@@ -589,6 +611,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 }
 
                 GlobalState.updateRunState(RunState.START)
+                foregroundRefreshJob?.cancel()
                 lastStartForegroundParams = null
                 true
             }
