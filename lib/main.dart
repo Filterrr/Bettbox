@@ -116,6 +116,7 @@ Future<void> _runApp(int version) async {
     }
   }
   await android?.init();
+  
   await window?.init(version);
   HttpOverrides.global = BettboxHttpOverrides();
   runApp(ProviderScope(child: const Application()));
