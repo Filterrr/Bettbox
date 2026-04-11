@@ -19,6 +19,7 @@ import 'package:flutter_js/flutter_js.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' as flutter_riverpod;
 import 'package:material_color_utilities/palettes/core_palette.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:synchronized/synchronized.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'common/common.dart';
@@ -47,12 +48,14 @@ class GlobalState {
   UpdateTasks tasks = [];
   final navigatorKey = GlobalKey<NavigatorState>();
   final backgroundMode = ValueNotifier<bool>(false);
+  final animationEnabled = ValueNotifier<bool>(true);
   AppController? _appController;
   bool? _isAndroidTV;
   int _taskLoopToken = 0;
   bool _isExecutingTasks = false;
   bool _needsTaskRestart = false;
   Timer? _backgroundCleanupTimer;
+  final Lock _scriptEvaluateLock = Lock();
 
   SetupParams? _lastSuccessfulSetupParams;
 
@@ -169,6 +172,9 @@ class GlobalState {
   }
 
   Future<void> handleBackground() async {
+    if (system.isDesktop) {
+      animationEnabled.value = false;
+    }
     if (!backgroundMode.value) {
       backgroundMode.value = true;
       _scheduleBackgroundCleanup();
@@ -179,6 +185,9 @@ class GlobalState {
   }
 
   void handleForeground() {
+    if (system.isDesktop) {
+      animationEnabled.value = true;
+    }
     if (!backgroundMode.value) {
       return;
     }
@@ -223,7 +232,7 @@ class GlobalState {
 
   void _scheduleBackgroundCleanup() {
     _backgroundCleanupTimer?.cancel();
-    _backgroundCleanupTimer = Timer(const Duration(minutes: 3), () {
+    _backgroundCleanupTimer = Timer(const Duration(minutes: 2), () {
       _backgroundCleanupTimer = null;
       if (!backgroundMode.value) {
         return;
@@ -235,15 +244,19 @@ class GlobalState {
   void cleanupBackgroundResources() async {
     final imageCache = PaintingBinding.instance.imageCache;
     imageCache.clearLiveImages();
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 1000));
     WidgetsBinding.instance.handleMemoryPressure();
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 1000));
     await clashCore.requestGc();
   }
 
   Future<void> handleStart([UpdateTasks? tasks]) async {
     startTime ??= DateTime.now();
-    await clashCore.startListener();
+    if (system.isAndroid && isService) {
+      await clashLibHandler?.startListener();
+    } else {
+      await clashCore.startListener();
+    }
     await service?.startVpn();
     final prefs = await preferences.sharedPreferencesCompleter.future;
     await prefs?.setBool('is_vpn_running', true);
@@ -281,7 +294,11 @@ class GlobalState {
 
   Future handleStop() async {
     startTime = null;
-    await clashCore.stopListener();
+    if (system.isAndroid && isService) {
+      await clashLibHandler?.stopListener();
+    } else {
+      await clashCore.stopListener();
+    }
     await service?.stopVpn();
     final prefs = await preferences.sharedPreferencesCompleter.future;
     await prefs?.setBool('is_vpn_running', false);
@@ -434,6 +451,8 @@ class GlobalState {
     final profileId = profile.id;
     final configMap = await getProfileConfig(profileId);
     final rawConfig = await handleEvaluate(configMap);
+    final originalProxyGroups = rawConfig['proxy-groups'];
+
     final realPatchConfig = patchConfig.copyWith(
       tun: patchConfig.tun.getRealTun(
         config.networkProps.routeMode,
@@ -718,6 +737,10 @@ class GlobalState {
       rules = [...fcmRules, ...rules];
     }
 
+    if (rawConfig['proxy-groups'] == null && originalProxyGroups != null) {
+      rawConfig['proxy-groups'] = originalProxyGroups;
+    }
+
     rawConfig['rule'] = rules;
     return rawConfig;
   }
@@ -735,37 +758,39 @@ class GlobalState {
   Future<Map<String, dynamic>> handleEvaluate(
     Map<String, dynamic> config,
   ) async {
-    final currentScript = globalState.config.scriptProps.currentScript;
-    if (currentScript == null) return config;
+    return _scriptEvaluateLock.synchronized(() async {
+      final currentScript = globalState.config.scriptProps.currentScript;
+      if (currentScript == null) return config;
 
-    config['proxy-providers'] ??= {};
-    final configJs = json.encode(config);
-    final scriptJs = json.encode(currentScript.content);
-    final runtime = getJavascriptRuntime();
+      config['proxy-providers'] ??= {};
+      final configJs = json.encode(config);
+      final scriptJs = json.encode(currentScript.content);
+      final runtime = getJavascriptRuntime();
 
-    try {
-      final res = await runtime.evaluateAsync('''
-        (() => {
-          const __bettboxConfig = $configJs;
-          const __bettboxScript = $scriptJs;
-          const __bettboxMain = new Function(
-            __bettboxScript + '\\nreturn typeof main === "function" ? main : null;',
-          )();
-          if (typeof __bettboxMain !== 'function') {
-            throw new Error('Script must define main(config)');
-          }
-          return __bettboxMain(__bettboxConfig);
-        })()
-      ''');
-      if (res.isError) throw res.stringResult;
+      try {
+        final res = await runtime.evaluateAsync('''
+          (() => {
+            const __bettboxConfig = $configJs;
+            const __bettboxScript = $scriptJs;
+            const __bettboxMain = new Function(
+              __bettboxScript + '\\nreturn typeof main === "function" ? main : null;',
+            )();
+            if (typeof __bettboxMain !== 'function') {
+              throw new Error('Script must define main(config)');
+            }
+            return __bettboxMain(__bettboxConfig);
+          })()
+        ''');
+        if (res.isError) throw res.stringResult;
 
-      return switch (res.rawResult) {
-        Pointer() => runtime.convertValue<Map<String, dynamic>>(res),
-        _ => Map<String, dynamic>.from(res.rawResult),
-      } ?? config;
-    } finally {
-      runtime.dispose();
-    }
+        return switch (res.rawResult) {
+          Pointer() => runtime.convertValue<Map<String, dynamic>>(res),
+          _ => Map<String, dynamic>.from(res.rawResult),
+        } ?? config;
+      } finally {
+        runtime.dispose();
+      }
+    });
   }
 }
 
