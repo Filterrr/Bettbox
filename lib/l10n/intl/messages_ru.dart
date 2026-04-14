@@ -298,6 +298,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "directNameserverFollowPolicy": MessageLookupByLibrary.simpleMessage(
       "Прямой DNS следует правилам",
     ),
+    "disableQuic": MessageLookupByLibrary.simpleMessage("Отключить QUIC"),
+    "disableQuicDesc": MessageLookupByLibrary.simpleMessage(
+      "Отключить QUIC для решения сетевых проблем",
+    ),
     "disclaimer": MessageLookupByLibrary.simpleMessage(
       "Отказ от ответственности",
     ),
@@ -335,8 +339,18 @@ class MessageLookup extends MessageLookupByLibrary {
     "enableOverride": MessageLookupByLibrary.simpleMessage(
       "Включить переопределение",
     ),
+    "endpointIndependentNat": MessageLookupByLibrary.simpleMessage(
+      "Улучшенный NAT",
+    ),
+    "endpointIndependentNatDesc": MessageLookupByLibrary.simpleMessage(
+      "Включить NAT независимый от конечной точки",
+    ),
     "entries": MessageLookupByLibrary.simpleMessage("записей"),
     "exclude": MessageLookupByLibrary.simpleMessage("Скрыть из недавних"),
+    "excludeChina": MessageLookupByLibrary.simpleMessage("Исключить Китай"),
+    "excludeChinaDesc": MessageLookupByLibrary.simpleMessage(
+      "Разрешить QUIC-трафик Китая вместо полной блокировки",
+    ),
     "excludeDesc": MessageLookupByLibrary.simpleMessage(
       "Скрыть приложение из недавних задач",
     ),
@@ -983,6 +997,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "storeFix": MessageLookupByLibrary.simpleMessage("Исправление магазина"),
     "storeFixDesc": MessageLookupByLibrary.simpleMessage(
       "Исправляет проблемы загрузки Google Play",
+    ),
+    "strictRoute": MessageLookupByLibrary.simpleMessage(
+      "Строгая маршрутизация",
+    ),
+    "strictRouteDesc": MessageLookupByLibrary.simpleMessage(
+      "Использовать строгий режим маршрутизации TUN",
     ),
     "style": MessageLookupByLibrary.simpleMessage("Стиль"),
     "subRule": MessageLookupByLibrary.simpleMessage("Подправило"),

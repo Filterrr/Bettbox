@@ -394,6 +394,46 @@ class AppLocalizations {
     );
   }
 
+  /// `Disable QUIC`
+  String get disableQuic {
+    return Intl.message(
+      'Disable QUIC',
+      name: 'disableQuic',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Disable QUIC to resolve specific network issues`
+  String get disableQuicDesc {
+    return Intl.message(
+      'Disable QUIC to resolve specific network issues',
+      name: 'disableQuicDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Exclude China`
+  String get excludeChina {
+    return Intl.message(
+      'Exclude China',
+      name: 'excludeChina',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Allow China QUIC traffic instead of blocking all`
+  String get excludeChinaDesc {
+    return Intl.message(
+      'Allow China QUIC traffic instead of blocking all',
+      name: 'excludeChinaDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `FCM Optimization`
   String get fcmOptimization {
     return Intl.message(
@@ -3689,6 +3729,26 @@ class AppLocalizations {
     return Intl.message('Stack Mode', name: 'stackMode', desc: '', args: []);
   }
 
+  /// `Strict Route`
+  String get strictRoute {
+    return Intl.message(
+      'Strict Route',
+      name: 'strictRoute',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Use TUN strict routing mode`
+  String get strictRouteDesc {
+    return Intl.message(
+      'Use TUN strict routing mode',
+      name: 'strictRouteDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `ICMP Forwarding`
   String get icmpForwarding {
     return Intl.message(
@@ -3719,6 +3779,26 @@ class AppLocalizations {
     return Intl.message(
       'Redirect DNS queries to internal DNS module',
       name: 'dnsHijackDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `NAT Enhancement`
+  String get endpointIndependentNat {
+    return Intl.message(
+      'NAT Enhancement',
+      name: 'endpointIndependentNat',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Enable endpoint-independent NAT`
+  String get endpointIndependentNatDesc {
+    return Intl.message(
+      'Enable endpoint-independent NAT',
+      name: 'endpointIndependentNatDesc',
       desc: '',
       args: [],
     );

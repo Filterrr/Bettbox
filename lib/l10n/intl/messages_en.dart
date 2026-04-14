@@ -298,6 +298,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "directNameserverFollowPolicy": MessageLookupByLibrary.simpleMessage(
       "Direct DNS Follows Policy",
     ),
+    "disableQuic": MessageLookupByLibrary.simpleMessage("Disable QUIC"),
+    "disableQuicDesc": MessageLookupByLibrary.simpleMessage(
+      "Disable QUIC to resolve specific network issues",
+    ),
     "disclaimer": MessageLookupByLibrary.simpleMessage("Disclaimer"),
     "disclaimerDesc": MessageLookupByLibrary.simpleMessage(
       "This free open-source software is for non-commercial learning and personal use only. Proxy services are independent of this software. By agreeing, you acknowledge this; otherwise, please exit.",
@@ -333,8 +337,18 @@ class MessageLookup extends MessageLookupByLibrary {
       "Upload crash logs when needed",
     ),
     "enableOverride": MessageLookupByLibrary.simpleMessage("Enable Override"),
+    "endpointIndependentNat": MessageLookupByLibrary.simpleMessage(
+      "NAT Enhancement",
+    ),
+    "endpointIndependentNatDesc": MessageLookupByLibrary.simpleMessage(
+      "Enable endpoint-independent NAT",
+    ),
     "entries": MessageLookupByLibrary.simpleMessage(" entries"),
     "exclude": MessageLookupByLibrary.simpleMessage("Hide from Recents"),
+    "excludeChina": MessageLookupByLibrary.simpleMessage("Exclude China"),
+    "excludeChinaDesc": MessageLookupByLibrary.simpleMessage(
+      "Allow China QUIC traffic instead of blocking all",
+    ),
     "excludeDesc": MessageLookupByLibrary.simpleMessage(
       "Hide app from recent tasks list",
     ),
@@ -965,6 +979,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "storeFix": MessageLookupByLibrary.simpleMessage("Store Fix"),
     "storeFixDesc": MessageLookupByLibrary.simpleMessage(
       "Fix Play Store download issues",
+    ),
+    "strictRoute": MessageLookupByLibrary.simpleMessage("Strict Route"),
+    "strictRouteDesc": MessageLookupByLibrary.simpleMessage(
+      "Use TUN strict routing mode",
     ),
     "style": MessageLookupByLibrary.simpleMessage("Style"),
     "subRule": MessageLookupByLibrary.simpleMessage("Sub Rule"),
