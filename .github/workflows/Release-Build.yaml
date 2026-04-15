@@ -92,16 +92,6 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      # 【新增】Android 特有：配置支持 16K 的 NDK
-      - name: Setup NDK
-        if: matrix.is_android == true
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r26b
-          add-to-path: true
-          link-to-sdk: true
-
       # Windows 特有：配置 Rust 环境
       - name: Setup Rust
         if: matrix.platform == 'windows'
@@ -126,34 +116,7 @@ jobs:
       - name: Prepare Dependencies
         run: |
           flutter pub get
-          dart run build_runner build -d || true
-
-      # 【新增】针对 Android 平台强制升级 Flutter 扫码插件中不符合 16K 标准的闭源依赖
-      - name: Force 16K Google Dependencies (CameraX & ML Kit)
-        if: matrix.is_android == true
-        run: |
-          cat <<EOF >> android/build.gradle
-
-          // 强制所有子项目(包括 Flutter 插件)解析更高版本支持 16K 的库
-          allprojects {
-              configurations.all {
-                  resolutionStrategy {
-                      force 'androidx.camera:camera-core:1.4.0'
-                      force 'androidx.camera:camera-camera2:1.4.0'
-                      force 'androidx.camera:camera-lifecycle:1.4.0'
-                      force 'androidx.camera:camera-video:1.4.0'
-                      force 'androidx.camera:camera-view:1.4.0'
-                      force 'com.google.mlkit:barcode-scanning:17.3.0'
-                      force 'com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1'
-                  }
-              }
-          }
-          EOF
-
-      # 【新增】针对 Android 平台全局注入 Go 语言的 16K 链接器环境变量
-      - name: Inject 16K Page Size for Go (Android)
-        if: matrix.is_android == true
-        run: echo "CGO_LDFLAGS=-Wl,-z,max-page-size=16384" >> $GITHUB_ENV
+          dart run build_runner build -d
 
       # --- 核心构建逻辑分流 ---
       
