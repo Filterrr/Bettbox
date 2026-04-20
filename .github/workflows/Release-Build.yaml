@@ -2,11 +2,6 @@ name: Release Build
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - '**.md'
-      - '.gitignore'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
