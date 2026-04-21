@@ -35,20 +35,20 @@ jobs:
             arch: amd64
             go_version: '1.25.x'
             flutter_channel: 'stable'
-            flutter_version: '3.38.10'
+            flutter_version: '3.24.x'
           - platform: windows
             os: windows-2022
             arch: arm64
             go_version: '1.25.x'
             flutter_channel: 'stable'
-            flutter_version: '3.38.10'
+            flutter_version: '3.24.x'
           - platform: windows
             os: windows-2022
             arch: amd64
             compatible: true
             go_version: '1.22.x'
             flutter_channel: 'stable'
-            flutter_version: '3.38.10'
+            flutter_version: '3.24.x'
 
           # --- macOS 平台 ---
           - platform: macos
@@ -162,7 +162,7 @@ jobs:
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.compatible == true && '--compatible' || '' }}
+          dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.compatible == true && '--compatible' || '' }} --enable-impeller
           
       
       # --- 产物上传 ---
