@@ -242,6 +242,18 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept
 {
+  static auto last_mouse_move_time = std::chrono::steady_clock::now();
+
+  switch (message) {
+    case WM_MOUSEMOVE: {
+      auto now = std::chrono::steady_clock::now();
+      auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_mouse_move_time);
+      
+      if (duration.count() < 7) { 
+        return 0; 
+      }
+      last_mouse_move_time = now;
+      break; 
   switch (message)
   {
   case WM_DESTROY:
