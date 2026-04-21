@@ -248,62 +248,63 @@ Win32Window::MessageHandler(HWND hwnd,
   
   switch (message)
   {
-  case WM_MOUSEMOVE: {
-    auto now = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_mouse_move_time);
-    if (duration.count() < 10) { 
-      return 0; 
-    }
-    last_mouse_move_time = now;
-    break;
-  }
-  {
-  case WM_DESTROY:
-    window_handle_ = nullptr;
-    Destroy();
-    if (quit_on_close_)
+    case WM_MOUSEMOVE: 
     {
-      PostQuitMessage(0);
+      auto now = std::chrono::steady_clock::now();
+      auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_mouse_move_time);
+      if (duration.count() < 10) { 
+        return 0; 
+      }
+      last_mouse_move_time = now;
+      break;
     }
-    return 0;
 
-  case WM_DPICHANGED:
-  {
-    auto newRectSize = reinterpret_cast<RECT *>(lparam);
-    LONG newWidth = newRectSize->right - newRectSize->left;
-    LONG newHeight = newRectSize->bottom - newRectSize->top;
+    case WM_DESTROY:
+      window_handle_ = nullptr;
+      Destroy();
+      if (quit_on_close_)
+      {
+        PostQuitMessage(0);
+      }
+      return 0;
 
-    SetWindowPos(hwnd, nullptr, newRectSize->left, newRectSize->top, newWidth,
-                 newHeight, SWP_NOZORDER | SWP_NOACTIVATE);
-
-    return 0;
-  }
-  case WM_SIZE:
-  {
-    RECT rect = GetClientArea();
-    if (child_content_ != nullptr)
+    case WM_DPICHANGED:
     {
-      // Size and position the child window.
-      MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
-                 rect.bottom - rect.top, TRUE);
-    }
-    return 0;
-  }
+      auto newRectSize = reinterpret_cast<RECT *>(lparam);
+      LONG newWidth = newRectSize->right - newRectSize->left;
+      LONG newHeight = newRectSize->bottom - newRectSize->top;
 
-  case WM_ACTIVATE:
-    if (child_content_ != nullptr)
+      SetWindowPos(hwnd, nullptr, newRectSize->left, newRectSize->top, newWidth,
+                   newHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+
+      return 0;
+    }
+
+    case WM_SIZE:
     {
-      SetFocus(child_content_);
+      RECT rect = GetClientArea();
+      if (child_content_ != nullptr)
+      {
+        MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
+                   rect.bottom - rect.top, TRUE);
+      }
+      return 0;
     }
-    return 0;
 
-  case WM_DWMCOLORIZATIONCOLORCHANGED:
-    UpdateTheme(hwnd);
-    return 0;
-  }
+    case WM_ACTIVATE:
+      if (child_content_ != nullptr)
+      {
+        SetFocus(child_content_);
+      }
+      return 0;
 
-  return DefWindowProc(window_handle_, message, wparam, lparam);
-}
+    case WM_DWMCOLORIZATIONCOLORCHANGED:
+      UpdateTheme(hwnd);
+      return 0;
+  } // switch 结束
+
+  return DefWindowProc(hwnd, message, wparam, lparam);
+} // 函数结束
 
 void Win32Window::Destroy()
 {
