@@ -497,15 +497,10 @@ class BuildCommand extends Command {
             ? await Build.calcSha256(corePaths.first)
             : null;
         Build.buildHelper(target, token!);
-        String windowsArgs = ' --description $desc --build-dart-define=CORE_SHA256=$token';
-        if (!compatible) {
-          windowsArgs += ' --enable-impeller';
-          print('Windows build: Impeller rendering engine enabled');
-        }
         _buildDistributor(
           target: target,
           targets: 'exe',
-          args: windowsArgs,
+          args: ' --description $desc --build-dart-define=CORE_SHA256=$token',
           env: env,
         );
         return;
