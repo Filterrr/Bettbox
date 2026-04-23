@@ -1,0 +1,176 @@
+name: Release Build
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IS_STABLE: ${{ !contains(github.ref, '-') }}
+  
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # --- Android 平台合并 ---
+          - platform: android
+            os: ubuntu-24.04
+            arch: universal
+            is_android: true
+            go_version: '1.25.x'
+            flutter_channel: 'stable'
+
+          # --- Windows 平台 ---
+          - platform: windows
+            os: windows-2022
+            arch: amd64
+            go_version: '1.25.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
+          - platform: windows
+            os: windows-2022
+            arch: arm64
+            go_version: '1.25.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
+          - platform: windows
+            os: windows-2022
+            arch: amd64
+            compatible: true
+            go_version: '1.22.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
+
+          # --- macOS 平台 ---
+          - platform: macos
+            os: macos-15
+            arch: arm64
+            go_version: '1.25.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
+          - platform: macos
+            os: macos-15
+            arch: amd64
+            go_version: '1.25.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
+          - platform: macos
+            os: macos-15
+            arch: amd64
+            compatible: true
+            go_version: '1.22.x'
+            flutter_channel: 'stable'
+            flutter_version: '3.38.10'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      # Android 特有：配置 Java 环境
+      - name: Setup Java 17
+        if: matrix.is_android == true
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: 'gradle'
+
+      # Windows 特有：配置 Rust 环境
+      - name: Setup Rust
+        if: matrix.platform == 'windows'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.arch == 'arm64' && 'aarch64-pc-windows-msvc' || 'x86_64-pc-windows-msvc' }}
+
+      - name: Setup Golang
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go_version }}
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ matrix.flutter_channel }}
+          cache: true
+          cache-key: flutter-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('**/pubspec.lock') }}
+          flutter-version: ${{ matrix.flutter_version || '' }}
+          
+      - name: Prepare Dependencies
+        run: |
+          flutter pub get
+          dart run build_runner build -d
+
+      # --- 核心构建逻辑分流 ---
+      
+      # 情况 A: Android 构建
+      - name: Build Android APK
+        if: matrix.is_android == true
+        run: |
+          dart setup.dart android --arch universal --out core ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
+          flutter build apk --release \
+            --target-platform android-arm,android-arm64,android-x64 \
+            --split-per-abi \
+            --dart-define=APP_ENV=prod \
+            --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
+
+      # 新增：解码 Keystore 并进行一致性签名
+      - name: Sign Android APKs with Fixed Keystore
+        if: matrix.is_android == true
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # 1. 从 Base64 解码恢复 Keystore 文件
+          echo "$KEYSTORE_BASE64" | base64 --decode > release.keystore
+          
+          # 2. 定位 Android SDK 中的 apksigner 工具
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | grep -v "\.bat$" | sort -r | head -n 1)
+          
+          # 3. 遍历构建产物并注入固定签名 (使用 env: 参数安全传递密码，防止在日志中泄露)
+          for apk in build/app/outputs/flutter-apk/*-release.apk; do
+            if [ -f "$apk" ]; then
+              echo "Applying consistent signature to $apk"
+              $APKSIGNER sign --ks release.keystore \
+                --ks-pass env:KEYSTORE_PASSWORD \
+                --ks-key-alias "$KEY_ALIAS" \
+                --key-pass env:KEY_PASSWORD \
+                "$apk"
+            fi
+          done
+          
+          # 4. 清理密钥文件以保证运行器安全
+          rm release.keystore
+
+      # 情况 B: 桌面端构建 (Windows/macOS/Linux)
+      - name: Build Desktop Platform
+        if: matrix.is_android != true
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.compatible == true && '--compatible' || '' }}
+          
+      
+      # --- 产物上传 ---
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}
+          path: ${{ matrix.is_android == true && 'build/app/outputs/flutter-apk/*.apk' || './dist' }}
+          compression-level: 9
+          retention-days: 3
+          overwrite: true
