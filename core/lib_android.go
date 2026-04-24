@@ -110,7 +110,7 @@ func handleStartTun(fd int, callback unsafe.Pointer) {
 			limit:    semaphore.NewWeighted(4),
 		}
 		initTunHook()
-		tunListener, _ := t.Start(fd, currentConfig.General.Tun.Device, currentConfig.General.Tun.Stack, currentConfig.General.Tun.DisableICMPForwarding, uint32(currentConfig.General.Tun.MTU))
+		tunListener, _ := t.Start(fd, currentConfig.General.Tun.Device, currentConfig.General.Tun.Stack, currentConfig.General.Tun.DisableICMPForwarding, uint32(currentConfig.General.Tun.MTU), currentConfig.General.IPv6)
 		if tunListener != nil {
 			log.Infoln("TUN address: %v", tunListener.Address())
 			tunHandler.listener = tunListener
@@ -153,11 +153,15 @@ func removeTunHook() {
 func handleGetAndroidVpnOptions() string {
 	tunLock.Lock()
 	defer tunLock.Unlock()
+	ipv6Address := ""
+	if currentConfig.General.IPv6 {
+		ipv6Address = state.DefaultIpv6Address
+	}
 	options := state.AndroidVpnOptions{
 		Enable:                state.CurrentState.VpnProps.Enable,
 		Port:                  currentConfig.General.MixedPort,
 		Ipv4Address:           state.DefaultIpv4Address,
-		Ipv6Address:           state.GetIpv6Address(),
+		Ipv6Address:           ipv6Address,
 		AccessControl:         state.CurrentState.VpnProps.AccessControl,
 		SystemProxy:           state.CurrentState.VpnProps.SystemProxy,
 		AllowBypass:           state.CurrentState.VpnProps.AllowBypass,
