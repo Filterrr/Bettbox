@@ -12,59 +12,52 @@ permissions:
 
 env:
   IS_STABLE: ${{ !contains(github.ref, '-') }}
-  
+
 jobs:
   build:
     name: Build ${{ matrix.platform }}-${{ matrix.arch }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest                # 全部统一为 Linux 运行器
     strategy:
       fail-fast: false
       matrix:
         include:
-          # --- Android 平台合并 ---
+          # --- Android 平台 ---
           - platform: android
-            os: ubuntu-latest
             arch: universal
             is_android: true
             go_version: '1.25.x'
             flutter_channel: 'stable'
 
-          # --- Windows 平台 ---
+          # --- Windows 平台（交叉编译）---
           - platform: windows
-            os: windows-latest
             arch: amd64
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
           - platform: windows
-            os: windows-latest
             arch: arm64
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
           - platform: windows
-            os: windows-latest
             arch: amd64
             compatible: true
             go_version: '1.22.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
 
-          # --- macOS 平台 ---
+          # --- macOS 平台（交叉编译）---
           - platform: macos
-            os: macos-latest
             arch: arm64
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
           - platform: macos
-            os: macos-latest
             arch: amd64
             go_version: '1.25.x'
             flutter_channel: 'stable'
             flutter_version: '3.38.10'
           - platform: macos
-            os: macos-latest
             arch: amd64
             compatible: true
             go_version: '1.22.x'
@@ -87,8 +80,9 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      # Windows 特有：配置 Rust 环境
-      - name: Setup Rust
+      # 原 Windows 特有的 Rust 配置：如需交叉编译目标，可改为安装对应 target
+      # 此处保留条件安装，但改为安装 Linux 上的交叉编译 Rust target
+      - name: Setup Rust (cross‑compile)
         if: matrix.platform == 'windows'
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -107,15 +101,15 @@ jobs:
           cache: true
           cache-key: flutter-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('**/pubspec.lock') }}
           flutter-version: ${{ matrix.flutter_version || '' }}
-          
+
       - name: Prepare Dependencies
         run: |
           flutter pub get
           dart run build_runner build -d
 
-      # --- 核心构建逻辑分流 ---
-      
-      # 情况 A: Android 构建
+      # --- 核心构建逻辑 ---
+
+      # Android 构建
       - name: Build Android APK
         if: matrix.is_android == true
         run: |
@@ -126,7 +120,7 @@ jobs:
             --dart-define=APP_ENV=prod \
             --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN || 'dummy' }}
 
-      # 新增：解码 Keystore 并进行一致性签名
+      # Android 签名
       - name: Sign Android APKs with Fixed Keystore
         if: matrix.is_android == true
         env:
@@ -135,13 +129,8 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          # 1. 从 Base64 解码恢复 Keystore 文件
           echo "$KEYSTORE_BASE64" | base64 --decode > release.keystore
-          
-          # 2. 定位 Android SDK 中的 apksigner 工具
           APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | grep -v "\.bat$" | sort -r | head -n 1)
-          
-          # 3. 遍历构建产物并注入固定签名 (使用 env: 参数安全传递密码，防止在日志中泄露)
           for apk in build/app/outputs/flutter-apk/*-release.apk; do
             if [ -f "$apk" ]; then
               echo "Applying consistent signature to $apk"
@@ -152,20 +141,17 @@ jobs:
                 "$apk"
             fi
           done
-          
-          # 4. 清理密钥文件以保证运行器安全
           rm release.keystore
 
-      # 情况 B: 桌面端构建 (Windows/macOS/Linux)
+      # 桌面端构建（现在全在 Linux 上交叉编译）
       - name: Build Desktop Platform
         if: matrix.is_android != true
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.compatible == true && '--compatible' || '' }}
-          
-      
-      # --- 产物上传 ---
+
+      # --- 产物上传（路径保持不变）---
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:
